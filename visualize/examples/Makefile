@@ -16,7 +16,7 @@ sg/sg_uniq_%.png: %.lsp ../visualize.py ../bin/code-visualize.py
 	$(VISUALIZE) $< $@ --which sg
 
 cf/cf_%.png: %.lsp ../visualize.py ../bin/code-visualize.py
-	$(VISUALIZE) $< $@
+	$(VISUALIZE) $< $@ --theme cut_corners
 
 sg/sg_%.svg: %.lsp ../visualize.py ../bin/code-visualize.py
 	$(VISUALIZE) $< $@ --which sg --uniqify no

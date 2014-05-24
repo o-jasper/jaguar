@@ -36,11 +36,11 @@ Looking to make something that visualizes the control flow, rather than the
 AST tree. That would actually be useful.
 
 ## TODO
-* More/nicer themes.. Particularly an Ethereum theme would be nice.
-
 * Graphically indicate `return`, `stop`.
 
 * Handle comments.
+
+* More/nicer themes.. Particularly an Ethereum theme would be nice.(difficult..)
 
 * Further out:
   + More direct control of positioning?

@@ -7,21 +7,25 @@ from python_2_3_compat import to_str, is_str
 
 from LLL_parser import LLLWriter
 
-
 themes = {'basic' :
            {'default'      : [('fontname', 'Arial')],
-            'default_edge' : [],
             'body'         : [('shape', 'box')],
-            'control'      : [],
             'body_edge'    : [('penwidth', '2.0')],
             'true'         : [('label','true')],
             'false'        : [('label','false')],
-            'plain_edge'   : [],
             'for_edge'     : [('label','loop'), ('back_too', 'plain_edge')],
-#('dir','both')],
             'lll'          : [('label',' LLL')],
             'comment'      : [],
-            'debug'        : [('label','bugifshown')]}}
+            'debug'        : [('label','bugifshown')]},
+          'cut_corners' :
+           {'pass_on'  : 'basic',
+            'cut_tops' : ['if', 'when', 'else', 'for'],
+            'if'       : [('bgcolor', 'lightgrey'), ('style', 'filled')],
+            'when'     : [('derive', 'if')],
+            'unless'   : [('derive', 'if')],
+            'for'      : [('derive', 'if')]
+            }}
+            
 
 class GraphCode:
     
@@ -39,8 +43,11 @@ class GraphCode:
         self.i = 0
 
     def cf_expr_str(self, seq):
-        if not (type(seq) is list and len(seq) > 0):
-            raise Exception(seq)
+        assert type(seq) is list
+        assert len(seq) > 0
+        if 'cut_tops' in self.attrs and seq[0] in self.attrs['cut_tops']:
+            seq = seq[1:]
+            assert len(seq) > 0
         stream = io.StringIO()
         self.write_fun(stream, seq[0])
         for el in seq[1:]:  # Here for the newlines.
@@ -48,7 +55,6 @@ class GraphCode:
             self.write_fun(stream, el)
         stream.seek(0)  # Dont forget to read back!
         return stream.read()
-
 
     # Checks if parts of expressions need more nodes.
     def control_flow_fix(self, ast):
@@ -73,21 +79,26 @@ class GraphCode:
         else:
             return ast, []
 
-
-    def get_attrs(self, of):
-        if of not in self.attrs:
-            return self.atts['default']
+    def get_attrs(self, of, attrs=None):
+        attrs = attrs or self.attrs
+        if of not in attrs:
+            if 'pass_on' in attrs:
+                return self.get_attrs(of, themes[attrs['pass_on']])
+            else:
+                return dict(attrs['default'])
         elif of in self.calculated_attrs:
             return dict(self.calculated_attrs[of])
         else:
-            val = dict(self.attrs[of])
-            for sub in (val['derive'] if 'derive' in val else []) + ['default']:
-                for el in self.attrs[sub]:
+            val = dict(attrs[of])
+            for sub in (val['derive'].split(',') if 'derive' in val else []) + ['default']:
+                cur = attrs
+                while sub not in cur:
+                    cur = themes[cur['pass_on']]
+                for el in cur[sub]:
                     if el[0] not in val:
                         val[el[0]] = el[1]
             self.calculated_attrs[of] = val
             return dict(val)
-
 
     def add_node(self, added, which='default', uniqify=None):
         if uniqify is None:
@@ -97,23 +108,24 @@ class GraphCode:
             self.i += 1
             node = pydot.Node(str(self.i) if uniqify else added)
             node.obj_dict['attributes'] = self.get_attrs(which)
+            # (Python3 needs issubclass) **
+            assert isinstance(node.obj_dict['attributes'], dict)
             node.set_label(added)
             added = node
 
         self.graph.add_node(added)
         return added
 
-
     def add_edge(self, fr, to, edge_which='default_edge'):
         edge = pydot.Edge(fr, to)
         attrs = self.get_attrs(edge_which)
+        assert isinstance(attrs, dict)  # **
         edge.obj_dict['attributes'] = attrs
         self.graph.add_edge(edge)
         if 'back_too' in attrs:  # Option to make a backward edge.
             back = pydot.Edge(to, fr)
             back.obj_dict['attributes'] = self.get_attrs(attrs['back_too'])
             self.graph.add_edge(back)
-
 
     def cf_add_node(self, added, fr, which, edge_which):
         llls = []
@@ -129,7 +141,6 @@ class GraphCode:
         for lll in llls:
             self.control_flow([lll[1]], added, lll[0]) #'lll')
         return added
-
 
     def control_flow(self, ast, fr=None, fr_which='body_edge'):
         assert type(ast) is list
@@ -156,7 +167,7 @@ class GraphCode:
 
                     if name == 'if':
                         assert len(el) in [3,4]  # The condition.
-                        fr = self.cf_add_node(el[:2], fr, 'control', fr_which)
+                        fr = self.cf_add_node(el[:2], fr, name, fr_which)
                         self.control_flow([el[2]], fr, 'true')
                         if len(el) == 4:
                             self.control_flow([el[3]], fr, 'false')
@@ -166,7 +177,7 @@ class GraphCode:
                             raise Exception('Not enough arguments', len(el), el)
 
                         if name not in ['seq']:
-                            fr = self.cf_add_node(el[:n], fr, 'control', fr_which)
+                            fr = self.cf_add_node(el[:n], fr, name, fr_which)
                         else:
                             which = fr_which
                         self.control_flow(el[n:], fr, which)

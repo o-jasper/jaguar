@@ -22,7 +22,7 @@ def bijection_test_lllparser(ast2):
         print("")
 
 
-from serpent import parser, rewriter, compiler, lllparser
+from jaguar import parser, rewriter, compiler, lllparser
 
 
 def test_on_text(text):

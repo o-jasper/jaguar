@@ -1,4 +1,4 @@
-from serpent import *
+from jaguar import *
 
 assert type_of(astify(['to_tuple', ['tuple', 'a_to_bbb'], 'x'])) == ['tuple', 'bbb']
 

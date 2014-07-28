@@ -3,7 +3,7 @@ import re
 import utils
 from utils import token, astnode, astify
 
-import rewriter2
+import rewriter
 
 var_types = {}
 
@@ -66,7 +66,7 @@ def type_of(ast):
             return 'any'
     else:
         b = ast.val
-        if re.match('^[0-9\-]*$', b)
+        if re.match('^[0-9\-]*$', b):
             return 'int64'
         elif b[:2] == '0x':
             return 'uint64' if len(b) < 18 else 'uint256'

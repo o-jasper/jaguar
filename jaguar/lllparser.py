@@ -1,23 +1,38 @@
+import io
 import parser
 
 
-def tokenize_lll(text):
-    tokens = []
-    for line in text.split('\n'):
-        i = line.find(';')
-        if i >= 0:
-            tokens += parser.tokenize(line[:i])
-        else:
-            tokens += parser.tokenize(line)
-    return tokens
+def parse_lll(stream):
+    if isinstance(stream, (str, unicode)):
+        stream = io.StringIO(unicode(stream))
 
+    tokens, i = [], 0  # Line number and the tokens accumulated.
+    i = 0
+    while True:
 
-def parse_lll(text):
-    tokens = tokenize_lll(text)
-    for token in tokens:
-        token.line = text[:token.char].count('\n')
-        token.char -= text[:token.char].rfind('\n')
-        token.metadata = [token.fil, token.line, token.char]
+        line = ""
+        n = 0
+        while len(line) == 0:
+            line = line + stream.readline()
+            i += 1
+            n += 1
+            if n > 16:  # TODO need stream.eof
+                ast, v = _parse_lll(tokens, 0)
+                return ast
+
+        upto, upto2 = line.find('#'), line.find('//')  # Clumsy.
+        if upto == -1:
+            upto = len(line)
+        if upto2 == -1:
+            upto2 = len(line)
+        upto = max(upto, upto2)
+
+        for token in parser.tokenize(line[:upto]):  # Muck with tokens.
+            token.line = i - 1
+            token.metadata = [token.fil, token.line, token.char]
+
+            tokens.append(token)
+
     ast, v = _parse_lll(tokens, 0)
     return ast
 

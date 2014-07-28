@@ -67,3 +67,45 @@ def _parse_lll(tokens, pos):
             o[1].fun == 'mstore':
         o = [parser.token('sstore'), o[1].args[0], o[2]]
     return parser.astnode(o[0].val, o[1:], *m), pos
+
+
+def write_lll_stream(ast, stream):
+    prep = {'mload':'@', 'sload':'@@' }
+    setting = {'mstore':('[',']'), 'sstore':('[[', ']]')}
+    surround = {'seq':('{','}','\n'), 'str':('"','"','')}
+    if ast.fun in prep:
+        if len(ast.args) != 1:
+            raise Exception("%s input wrong length" % ast.fun, val)
+        stream.write(prep[ast.fun])
+        write_lll_stream(stream, ast.args[1])
+    elif ast.fun in setting:
+        if len(ast.args) != 2:
+            raise Exception("%s input wrong length" % ast.fun, val)
+        b,a = setting[ast.fun]
+        stream.write(b)
+        write_lll_stream(ast.args[0])
+        stream.write(a + ' ')
+        write_lll_stream(ast.args[1])
+    elif ast.fun in surround:
+        b,a, between = surround[ast.fun]
+        stream.write(b)
+        for el in ast.args:
+            stream.write(between)
+            write_lll_stream(ast, stream)
+        stream.write(a)
+    elif len(ast.args) == 0:
+        stream.write('()')
+    else:
+        stream.write('(')
+        write_lll_stream(ast.args[0], stream)
+        for el in ast.args[1:]:
+            stream.write(' ')
+            write_lll_stream(el, stream)
+        stream.write(')')
+
+
+def write_lll(ast):
+    s = io.StringIO()
+    write_lll_stream(ast, s)
+    s.seek(0)
+    return s.read()

@@ -44,7 +44,7 @@ import write_serpent  #serialize.
 def _write_fun(stream, ast):
     internal = io.StringIO()
     if args.text =='serpent':
-        write_serpent.serialize(utils.nodeify(ast), internal)
+        write_serpent.serialize(utils.astify(ast), internal)
     else:
         LLLWriter().write_lll_stream(internal, ast)
     internal.seek(0)

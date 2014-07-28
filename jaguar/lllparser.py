@@ -9,9 +9,7 @@ def parse_lll(stream):
     tokens, i = [], 0  # Line number and the tokens accumulated.
     i = 0
     while True:
-
-        line = ""
-        n = 0
+        line, n = "", 0  # Get current line. (n for end of file.
         while len(line) == 0:
             line = line + stream.readline()
             i += 1
@@ -25,7 +23,7 @@ def parse_lll(stream):
             upto = len(line)
         if upto2 == -1:
             upto2 = len(line)
-        upto = max(upto, upto2)
+        upto = min(upto, upto2)
 
         for token in parser.tokenize(line[:upto]):  # Muck with tokens.
             token.line = i - 1

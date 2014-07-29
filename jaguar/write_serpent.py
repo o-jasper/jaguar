@@ -112,7 +112,7 @@ def cond_args(args):  # Makes `if` fit the paradigm.
     return o
 
 
-def serialize(ast, output='', tabs=0):
+def write_serpent(ast, output='', tabs=0):
     if isinstance(output, (str,unicode)):
         stream = StringIO(unicode(output))
         serialize(ast, stream, tabs)

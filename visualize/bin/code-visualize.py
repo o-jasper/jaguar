@@ -38,7 +38,7 @@ from visualize import GraphCode
 from LLL_parser import LLLParser, LLLWriter
 
 import utils
-import write_serpent  #serialize.
+from write_serpent import write_serpent  #serialize.
 
 
 def _write_fun(stream, ast):

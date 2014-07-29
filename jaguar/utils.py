@@ -3,11 +3,13 @@ import re
 
 class token():
     def __init__(self, val, fil='', line=0, char=0):
-        self.val = val
+        self.val = str(val)
         self.metadata = [self.fil, self.line, self.char] = fil, line, char
         self.__repr__ = lambda: str(self.val)
         self.listfy = lambda: self.val
 
+    def __repr__(self):
+        return self.val
 
 def tokenify(s, fil='', line=0, char=0):
     return s if isinstance(s, token) else token(s, fil, line, char)
@@ -18,52 +20,41 @@ def detokenify(s):
 
 
 class astnode():
-    def __init__(self, fun, args, fil='', line=0, char=0):
-        self.fun = detokenify(fun)
+    def __init__(self, args, fil='', line=0, char=0):
+        assert isinstance(args, list)
         self.args = args
         self.metadata = [self.fil, self.line, self.char] = fil, line, char
-        self.listfy = lambda: [self.fun] + map(lambda x: x.listfy(), self.args)
+
+    def listify():
+        return map(lambda x: x.listfy(), self.args)
 
     def __repr__(self):
-        o = '(' + self.fun
-        subs = map(repr, self.args)
-        k = 0
-        out = ' '
-        while k < len(subs) and o != '(seq':
-            if '\n' in subs[k] or len(out + subs[k]) >= 80:
-                break
-            out += subs[k] + ' '
-            k += 1
-        if k < len(subs):
-            o += out + '\n    '
-            o += '\n'.join(subs[k:]).replace('\n', '\n    ')
-            o += '\n)'
-        else:
-            o += out.rstrip() + ')'
+        if len(self.args) == 0:
+            return '()'
+        o = '(' + repr(self.args[0])
+        for el in self.args[1:]:
+            o += ' ' + repr(el)
+        o += ')'
         return o
 
 
 def astify(s, fil='', line=0, char=0):
     if isinstance(s, astnode):
-        metadata = s.metadata
-        fun = s.fun
-        nodes = map(lambda x: astify(x, *s.metadata), s.args)
+        return astnode(map(lambda x: astify(x, *s.metadata), s.args), *s.metadata)
     elif isinstance(s, (token, str, unicode, int, long)):
         return tokenify(s)
     else:
         metadata = fil, line, char
-        fun = s[0].val if isinstance(s[0], token) else s[0]
-        nodes = map(lambda x: astify(x, *metadata), s[1:])
-    return astnode(fun, nodes, *metadata)
+        return astnode(map(lambda x: astify(x, *metadata), s), *metadata)
 
 
 def deastify(ast):
     if isinstance(ast, token):
         return detokenify(ast)
     elif isinstance(ast, astnode):
-        ret = [ast.fun] + map(deastify, ast.args)
+        return map(deastify, ast.args)
     else:
-        return el
+        return ast
 
 
 is_numeric = lambda x: isinstance(x, (int, long))

@@ -1,197 +1,148 @@
 # S-expression input of exactly the same as serpent.
 
 import io
+import utils
+
 from python_2_3_compat import to_str, is_str
 
 
 class BeginEnd:
-    def __init__(self, begin, end, name=None,
-                  allow_different_end = False, seek_different_end = False,
-                  internal_handling = 'continue',
-                  wrong_end = 'default'):
-        self.begin = begin
+    def __init__(self, begin, end, name,
+                 allow_different_end = False, seek_different_end = False,
+                 internal='continue'):
+        self.begin = begin  # What begins and ends a expression.
         self.end   = end
-        self.name  = name
-        self.allow_different_end = allow_different_end
-        self.seek_different_end  = seek_different_end
-        self.internal_handling   = internal_handling
-        self.wrong_end = wrong_end
+        self.name  = name   # Name of the expression.
+        self.allow_different_end = allow_different_end  # Whether other enders can stop it.
+        self.seek_different_end  = seek_different_end   # Ignore other endings for speed.
+        self.internal   = internal    # What to do with contents.
+
+    def __repr__(self):
+        return self.name + " " + self.begin
+
+class Incorrect:
+    def __init__(self, msg, parser, be):
+        self.msg = msg
+        self.line_i = parser.line_i
+        self.be = be
+
+    def __repr__(self):
+        return str(self.line_i) + ": " + self.be.name + ", " + self.be.begin + ": " + self.msg
 
 
 class SExprParser:
 
     # Class essentially just stops me from having to pass these all the time.
     # Just do SExprParser().parse(), dont neccesarily need a variable.
-    def __init__(self, start_end = [BeginEnd('(', ')'),
-                                    BeginEnd(';', '\n', internal_handling='scrub'),
-                                    BeginEnd('"', '"',  'str', internal_handling='str',
-                                             wrong_end='ignore')],
-                 wrong_end_warning=True,
+    def __init__(self, stream, line_i = 0,
+                 start_end = [BeginEnd('(', ')', 'call'),
+                              BeginEnd(';', '\n', 'comment', internal='scrub'),
+                              BeginEnd('"', '"',  'str', internal='str')],
                  white=[' ', '\t', '\n'],
-                 earliest_macro={}):
+                 earliest_macro={}, fil=None,
+                 handle = lambda a,b: map(b.tok, a.split())):
+        if isinstance(stream, (str, unicode)):
+            stream = io.StringIO(to_str(stream))
+
+        self.stream = stream
+        self.line_i = line_i
         self.start_end = start_end
-        self.wrong_end_warning = wrong_end_warning
         self.white = white
         self.earliest_macro = {}  # Dictionary of functions that act as macros.
+        self.n_max = 16
+        self.fil = fil  # Current file.
+        self.handle = handle
 
+
+    def readline(self):  # Helps reading lines and the number we have read.
+        n, line = 0, self.stream.readline()
+
+        while line == '' and n < self.n_max:  # TODO need stream.eof
+            line, n = self.stream.readline(), n + 1
+        self.line_i += n
+        return line + '\n', n
 
     # Convenience function. Gets begin/end at position, if available.
-    def begin_here(self, string):
+    def begin_i(self, string):
+        k, which = len(string), None
         for el in self.start_end:
-            if string[:len(el.begin)] == el.begin:
-                return el
-        return None
+            j = string.find(el.begin)
+            if j != -1 and j < k:
+                k, which = j, el
+        return k,which
 
-    def end_here(self, string):
+    def end_i(self, string):
+        k, which = len(string), None
         for el in self.start_end:
-            if string[:len(el.end)] == el.end:
-                return el
-        return None
+            j = string.find(el.end)
+            if j != -1 and j < k:
+                k, which = j, el
+        return k,which
 
-    # Parses just looking at the end. TODO may want to have it parse, looking
+    
+    def tok(self, str):
+        return utils.token(str, self.fil, self.line_i)
+
+    def ast(self, name, args):
+        prep = []
+        if name != 'call':
+            prep = [self.tok(name)]
+        return utils.astnode(prep + args, self.fil, self.line_i)
+
+    # Parses just looking at the end. For instance for "strings"
+    # TODO may want to have it parse, looking
     # beginners _and_ enders, but just returning as a single string.
-    def raw_parse_plain(self, stream, initial='', end=')'):
+    def parse_plain(self, begin, initial=''):
         cur = initial
-        i = 0
-        if len(cur) < len(end):
-            cur = cur + stream.readline()
+        have = ''
+        while True:
+            i = cur.find(begin.end)
+            if i != -1:
+                return self.ast(begin.name, [self.tok(have + cur[:i])]), cur[i + 1:]
+            have += cur
 
-        while cur[i:i + len(end)] != end:
-            i += 1
-            n = 0
-            while i + len(end) > len(cur):
-                cur = cur + stream.readline()
-                n += 1
-                if n > 16:  # TODO need stream.eof
-                    return cur[i + len(end):], cur[:i]
-
-        return cur[i + len(end):], cur[:i]
+            line, n = self.readline()
+            if n == self.n_max:
+                raise Incorrect("file/stream ended unexpectedly", self, begin)
 
     # Returns a pair of arguments, the result and the remaining string.
-    def raw_parse_stream(self, stream, initial='',
-                         begin=BeginEnd('top', ')', 'top')):
-        cur = initial
-        out = []
+    def raw_parse(self, initial, begin):
+        have, cur, out = '', initial, []
 
-        def add(what):
-            if what != '':  # Dont do empty strings.
-                out.append(what)
-
-        def add_sub(added):
-            if len(added) > 0 and is_str(added[0]) and added[0] in self.earliest_macro:
-                out.append(self.earliest_macro[added[0]](added))
-            else:
-                out.append(added)
-
-        i = 0
         while True:
+            i, sub_begin = self.begin_i(cur)
+            j, end = self.end_i(cur)
+            #print(i,j, sub_begin, end)
+            if (sub_begin is not None) and i <= j:
+                out += self.handle(have + cur[:i], self)
+                if sub_begin.internal == 'continue':
+                    ast, cur = self.raw_parse(cur[i + 1:], sub_begin)
+                elif sub_begin.internal in ['str','scrub']:
+                    ast, cur = self.parse_plain(sub_begin, cur[i + 1:])
+                if sub_begin.internal != 'scrub':
+                    out.append(ast)    
+                continue
+            
+            if begin.seek_different_end and end is not None:
+                # End doesnt match beginning. (and it should)
+                if begin is not end and not begin.allow_different_end:
+                    raise Incorrect("ending", self, begin)
 
-            while i < len(cur):
+                out += self.handle(have + cur[:i], self)
+                return self.ast(begin.name, out), cur[i + 1:]
+            else:
+                i = cur.find(begin.end)
+                if i != -1:
+                    out += self.handle(have + cur[:i], self)
+                    return self.ast(begin.name, out), cur[i + 1:]
 
-                if cur[i] in self.white:  # Whitespace separates symbols.
-                    add(cur[:i])
-                    cur = cur[i + 1:]  # Update cur and integer.
-                    i = 0
-                    continue
+            have += cur
+            cur, n = self.readline()
+            if n == self.n_max:  # Ran out of stuff to read.
+                if begin.end != 'top':
+                    raise Incorrect("file/stream ended unexpectedly", self, begin)
+                out += self.handle(have,self)
+                return self.ast('top', out), ''
 
-                # (cheaper way, only checks the current one.)
-                if cur[i:i+len(begin.end)] == begin.end:
-                    add(cur[:i])
-                    return cur[i + len(begin.end):], out
-                # Potentially stop substree.
-                elif self.wrong_end_warning in ['accept', 'warn', 'assert']:
-
-                    end = self.end_here(cur[i:])
-
-                    if end is not None and end.wrong_end != 'ignore':
-                        if end.end != begin.end and \
-                           end.allow_different_end and begin.seek_different_end:
-                            if self.wrong_end_warning == 'warn':
-                                print("Warning, beginner and ender didnt match %s vs %s" %
-                                      (end, se))
-                                add(cur[:i])
-                                return cur[i + len(begin.end):], out
-                            raise((end, begin, i))  # Error, starter and ender did not match.
-                        else:  # Correct ending, or ignoring.
-                            add(cur[:i])
-                            return cur[i + len(begin.end):], out
-
-                # Potentially start subtree.
-                start = self.begin_here(cur[i:])
-                if start is not None:
-                    add(cur[:i])
-
-                    if start.internal_handling in ['scrub', 'str']:  # Dont parse inside.
-                        left, got = self.raw_parse_plain(stream,
-                                                         cur[i + len(start.begin):],
-                                                         start.end)
-
-                        if start.internal_handling == 'str':  # Use it.
-                            add_sub([start.name, got])
-
-                        cur = left
-                    else:
-                        left, ret = self.raw_parse_stream(stream,
-                                                          cur[i + len(start.begin):],
-                                                          begin=start)
-                        # The ender-starter associated is optionally attached.
-                        if start.name is None:
-                            add_sub(ret)
-                        else:
-                            add_sub([start.name] + ret)
-                        cur = left
-                    i = 0  # As `cur` is set to be used with reset integer.
-                    continue
-                i += 1
-
-            n = 0
-
-            extend = stream.readline()
-            while extend == '':  # TODO need stream.eof
-                extend = stream.readline()
-                n += 1
-                if n > 16:
-                    if cur != '':
-                        out.append(cur)
-                        return '', out
-                    else:
-                        return '', out
-            cur = cur + extend
-
-        assert False
-
-    def parse_stream(self, stream, initial=''):
-        return self.raw_parse_stream(stream, initial=initial)[1]
-
-    def parse_file(self, file, initial=''):
-        with open(file, 'r') as stream:
-            tree = self.parse_stream(stream, initial)
-        return tree
-
-    def parse(self, string):
-        return self.parse_stream(io.StringIO(to_str(string)))
-
-
-# Note: it doesnt do indentation.. or newlines.
-# also only does the s-expression way.
-def s_expr_write(stream, input, o='(', c=')', w=' '):
-    def handle_1(el):
-        if type(el) is list:
-            stream.write(to_str(o))
-            s_expr_write(stream, el, o=o, c=c, w=w)
-            stream.write(to_str(c))
-        else:
-            stream.write(to_str(el))
-
-    if len(input) > 0:
-        handle_1(input[0])
-        for el in input[1:]:
-            stream.write(to_str(w))
-            handle_1(el)
-
-
-def s_expr_str(tree, o='(', c=')', w=' '):
-    stream = io.StringIO()
-    s_expr_write(stream, tree, o=o, c=c, w=w)
-    stream.seek(0)  # Dont forget to read back!
-    return stream.read()
+    def parse(self, initial='', begin=BeginEnd('top', 'top', 'top')):
+        return self.raw_parse(initial, begin)[0]

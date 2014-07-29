@@ -72,8 +72,6 @@ class GraphCode:
             if is_str(ast[0]) and str(ast[0].lower()) in self.budders:
                 name = ast[0].lower()
                 use_str = self.budders[name]
-                print(';', use_str, line_i)
-                print('-', ast)
                 return use_str, [[name] + ast[1:]]
             else:
                 ret_alt, ret_buds = [], []

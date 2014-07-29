@@ -2,10 +2,11 @@ import re
 
 
 class astnode():
-    def __init__(self, args, fil='', line=0, char=0):
+    def __init__(self, args, fil='', line=0, char=0, comments=[]):
         assert isinstance(args, list)
         self.args = args
         self.metadata = [self.fil, self.line, self.char] = fil, line, char
+        self.comments = comments
 
     @property
     def line_i(self):

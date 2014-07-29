@@ -77,7 +77,7 @@ class LLLParser(SExprParser):
         self.start_end = [BeginEnd('[', ']', 'aref'),
                           BeginEnd('(', ')', 'call'),
                           BeginEnd('{', '}', 'seq'),
-                          BeginEnd(';', '\n', 'comment', internal='scrub',
+                          BeginEnd(';', '\n', 'comment', internal='comment',
                                    ignore_alt_end=True, ignore_as_alt_end=True),
                           BeginEnd('"', '"', 'str', internal='str')]
         self.n_max = 16

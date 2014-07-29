@@ -48,7 +48,7 @@ class SExprParser:
     # Just do SExprParser().parse(), dont neccesarily need a variable.
     def __init__(self, stream, line_i = 0,
                  start_end = [BeginEnd('(', ')', 'call'),
-                              BeginEnd(';', '\n', 'comment', internal='scrub',
+                              BeginEnd(';', '\n', 'comment', internal='comment',
                                        ignore_alt_end=True, ignore_as_alt_end=True),
                               BeginEnd('"', '"',  'str', internal='str')],
                  white=[' ', '\t', '\n'],
@@ -91,11 +91,11 @@ class SExprParser:
         return k,which
 
     
-    def ast(self, name, args):
+    def ast(self, name, args, comments=[]):
         prep = []
         if name != 'call':
             prep = [name]
-        return utils.astnode(prep + args, self.fil, self.line_i)
+        return utils.astnode(prep + args, self.fil, self.line_i, comments=comments)
 
     # Parses just looking at the end. For instance for "strings"
     # TODO may want to have it parse, looking
@@ -115,7 +115,7 @@ class SExprParser:
 
     # Returns a pair of arguments, the result and the remaining string.
     def raw_parse(self, initial, begin):
-        have, cur, out = '', initial, []
+        have, cur, out, next_comments = '', initial, [], []
 
         while True:
             i, sub_begin = self.begin_i(cur)
@@ -127,10 +127,14 @@ class SExprParser:
                 out += self.handle(have + cur[:i], self)
                 if sub_begin.internal == 'continue':
                     ast, cur = self.raw_parse(cur[i + 1:], sub_begin)
-                elif sub_begin.internal in ['str','scrub']:
+                elif sub_begin.internal in ['str', 'ignore', 'comment']:
                     ast, cur = self.parse_plain(sub_begin, cur[i + 1:])
-                if sub_begin.internal != 'scrub':
+                if sub_begin.internal not in ['ignore', 'comment']:
+                    ast.comments = next_comments
+                    next_comments = []
                     out.append(ast)
+                if sub_begin.internal == 'comment':
+                    next_comments.append(ast[1])
                 have = ''
                 continue
             
@@ -141,7 +145,7 @@ class SExprParser:
 
                 if begin.end == end.end or not (begin.ignore_alt_end or end.ignore_as_alt_end):
                     out += self.handle(have + cur[:j], self)
-                    return self.ast(begin.name, out), cur[j + 1:]
+                    return self.ast(begin.name, out, comments= next_comments), cur[j + 1:]
 
             have += cur
             cur, n = self.readline()

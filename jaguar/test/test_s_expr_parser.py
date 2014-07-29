@@ -21,7 +21,7 @@ def gen_tree(p, n, d):
 
 
 def test_case(string, tree, o='(', c=')', white=[' ', '\t', '\n']):
-    result = utils.deastify(SExprParser(string).parse())[1:]
+    result =  map(utils.deastify, SExprParser(string).parse().args[1:])
     if result != tree:
         #raise Exception('Mismatch', "\ntree", tree, "\nstring", string, "\nresult", result)
         print("string", string)
@@ -32,7 +32,7 @@ def test_1(p=0.1, n=2, d=2):
     tree = gen_tree(p, n, d)
     test_case(repr(utils.astify(tree)), [tree])
 
-#test_case('"string (stuff" should end', [['str', 'string (stuff'], 'should', 'end'])
+test_case('"string (stuff" should end', [['str', 'string (stuff'], 'should', 'end'])
 
 # Simple case test.
 test_case("bla 123 (45(678      af)sa faf((a sf))  (a) sfsa) ;do not include",

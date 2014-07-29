@@ -1,24 +1,6 @@
 import re
 
 
-class token():
-    def __init__(self, val, fil='', line=0, char=0):
-        self.val = str(val)
-        self.metadata = [self.fil, self.line, self.char] = fil, line, char
-        self.__repr__ = lambda: str(self.val)
-        self.listfy = lambda: self.val
-
-    def __repr__(self):
-        return self.val
-
-def tokenify(s, fil='', line=0, char=0):
-    return s if isinstance(s, token) else token(s, fil, line, char)
-
-
-def detokenify(s):
-    return s.val if isinstance(s, token) else s
-
-
 class astnode():
     def __init__(self, args, fil='', line=0, char=0):
         assert isinstance(args, list)
@@ -31,9 +13,13 @@ class astnode():
     def __repr__(self):
         if len(self.args) == 0:
             return '()'
-        o = '(' + repr(self.args[0])
+
+        def semi_repr(x):
+            return x if is_string(x) else repr(x)
+
+        o = '(' + semi_repr(self.args[0])
         for el in self.args[1:]:
-            o += ' ' + repr(el)
+            o += ' ' + semi_repr(el)
         o += ')'
         return o
 
@@ -41,20 +27,21 @@ class astnode():
 def astify(s, fil='', line=0, char=0):
     if isinstance(s, astnode):
         return astnode(map(lambda x: astify(x, *s.metadata), s.args), *s.metadata)
-    elif isinstance(s, (token, str, unicode, int, long)):
-        return tokenify(s)
-    else:
+    elif isinstance(s, list):
         metadata = fil, line, char
-        return astnode(map(lambda x: astify(x, *metadata), s), *metadata)
-
+        return astnode(map(lambda x: astify(x, *metadata), s), *metadata)    
+    elif isinstance(s, (int, long)):
+        return str(s)
+    elif isinstance(s, (str, unicode)):
+        return s
+    else:
+        assert False
 
 def deastify(ast):
-    if isinstance(ast, token):
-        return detokenify(ast)
-    elif isinstance(ast, astnode):
+    if isinstance(ast, astnode):
         return map(deastify, ast.args)
     else:
-        return ast
+        return str(ast)
 
 
 is_numeric = lambda x: isinstance(x, (int, long))

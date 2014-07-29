@@ -21,7 +21,7 @@ class BeginEnd:
         return self.name + " " + self.begin
 
 class Incorrect:
-    def __init__(self, msg, parser, be):
+    def __init__(self, msg, parser, be=None):
         self.msg = msg
         self.line_i = parser.line_i
         self.be = be
@@ -39,16 +39,14 @@ class SExprParser:
                               BeginEnd(';', '\n', 'comment', internal='scrub'),
                               BeginEnd('"', '"',  'str', internal='str')],
                  white=[' ', '\t', '\n'],
-                 earliest_macro={}, fil=None,
-                 handle = lambda a,b: map(b.tok, a.split())):
+                 earliest_macro={}, fil='',
+                 handle = lambda a,b: str(a).split()):
         if isinstance(stream, (str, unicode)):
             stream = io.StringIO(to_str(stream))
 
         self.stream = stream
         self.line_i = line_i
         self.start_end = start_end
-        self.white = white
-        self.earliest_macro = {}  # Dictionary of functions that act as macros.
         self.n_max = 16
         self.fil = fil  # Current file.
         self.handle = handle
@@ -80,13 +78,10 @@ class SExprParser:
         return k,which
 
     
-    def tok(self, str):
-        return utils.token(str, self.fil, self.line_i)
-
     def ast(self, name, args):
         prep = []
         if name != 'call':
-            prep = [self.tok(name)]
+            prep = [name]
         return utils.astnode(prep + args, self.fil, self.line_i)
 
     # Parses just looking at the end. For instance for "strings"
@@ -98,7 +93,7 @@ class SExprParser:
         while True:
             i = cur.find(begin.end)
             if i != -1:
-                return self.ast(begin.name, [self.tok(have + cur[:i])]), cur[i + 1:]
+                return self.ast(begin.name, [have + cur[:i]]), cur[i + 1:]
             have += cur
 
             line, n = self.readline()

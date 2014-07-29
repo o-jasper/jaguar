@@ -31,10 +31,11 @@ themes = {'basic' :
 class GraphCode:
     
     def __init__(self, graph=None, fr=None, uniqify=True, theme='basic', attrs=None,
-                 write_fun=None, lllwriter=LLLWriter()):
+                 write_fun=None, lllwriter=LLLWriter(), do_comments=True):
         self.graph = graph or pydot.Dot('from-tree', graph_type='digraph')
         self.fr = fr
         self.uniqify = uniqify
+        self.do_comments = do_comments
         self.budders = {'lll':"_LLL_", 'comment':""}
 
         self.attrs = attrs or themes[theme]
@@ -48,43 +49,57 @@ class GraphCode:
             return seq
         if not isinstance(seq, (list, astnode)) or len(seq) == 0:
             raise Exception(seq, type(seq))
+
         if 'cut_tops' in self.attrs and seq[0] in self.attrs['cut_tops']:
             seq = seq[1:]
             assert len(seq) > 0
+
         stream = io.StringIO()
         self.write_fun(stream, seq[0])
         for el in seq[1:]:  # Here for the newlines.
             stream.write(to_str('\n'))
             self.write_fun(stream, el)
+
         stream.seek(0)  # Dont forget to read back!
         return stream.read()
 
     # Checks if parts of expressions need more nodes.
     def control_flow_budding(self, ast):
-        line_i = -1
+        was_ast, ret_comments = None, []
         if isinstance(ast, astnode):
-            line_i = ast.line_i
+            was_ast = ast
+            ret_comments = was_ast.comments
             ast = ast.args
+
         if isinstance(ast, list):
             if len(ast) == 0:
-                return '()', []
+                return '()', [], ret_comments
 
             if is_str(ast[0]) and str(ast[0].lower()) in self.budders:
                 name = ast[0].lower()
                 use_str = self.budders[name]
-                return use_str, [[name] + ast[1:]]
+                return use_str, [[name] + ast[1:]], ret_comments
             else:
                 ret_alt, ret_buds = [], []
                 for el in ast:
-                    alt, buds = self.control_flow_budding(el)
+                    alt, buds, comments = self.control_flow_budding(el)
                     if alt not in ['seq', '']:
                         ret_alt.append(alt)
-                    ret_buds = ret_buds + buds
+
+                    if isinstance(el, astnode) and self.do_comments:
+                        ret_comments += comments
+
+                    ret_buds += buds
+
                 if len(ret_alt) == 0:
                     ret_alt = ['_seq_']
-                return ret_alt, ret_buds
+
+                if self.do_comments and was_ast is not None:
+                    ret_comments += was_ast.comments
+
+                return ret_alt, ret_buds, ret_comments
         else:
-            return ast, []
+            return ast, [], ret_comments
 
     def get_attrs(self, of, attrs=None):
         attrs = attrs or self.attrs
@@ -134,22 +149,29 @@ class GraphCode:
             back.obj_dict['attributes'] = self.get_attrs(attrs['back_too'])
             self.graph.add_edge(back)
 
+    def add_comments(self, comments, fr):
+        if self.do_comments:
+            for comment in comments:  # Comments and edges to there.
+                self.add_node(comment[1], 'edge')
+                if fr is not None:
+                    self.add_edge(fr, comment[1], 'comment_edge')
+
+        
     def cf_add_node(self, added, fr, which, edge_which):
-        buds = []
+        buds, comments = [], []
         if isinstance(added, astnode):
             added = added.args
         if isinstance(added, list):
-            added, buds = self.control_flow_budding(added)
+            added, buds, comments = self.control_flow_budding(added)
             added = self.cf_expr_str(added)
 
         added = self.add_node(added, which)
-
-        if fr is not None:
+        if fr is not None:  # Edge to the added one.
             self.add_edge(fr, added, edge_which)
 
+        self.add_comments(comments, added)
+
         for bud in buds:
-#            if len(bud) < 2:
- #               raise Exception(bud)
             self.control_flow(bud[1:], added, bud[0])
         return added
 

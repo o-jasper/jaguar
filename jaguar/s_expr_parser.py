@@ -118,7 +118,8 @@ class SExprParser:
 
     # Returns a pair of arguments, the result and the remaining string.
     def raw_parse(self, initial, begin):
-        have, cur, out, next_comments = '', initial, [], []
+        out, next_comments = [], []
+        have, cur = '', initial
 
         while True:
             i, sub_begin = self.begin_i(cur)
@@ -133,22 +134,24 @@ class SExprParser:
                 elif sub_begin.internal in ['str', 'ignore', 'comment']:
                     ast, cur = self.parse_plain(sub_begin, cur[i + 1:])
                 if sub_begin.internal not in ['ignore', 'comment']:
-                    ast.comments = next_comments
+                    ast.comments += next_comments
                     next_comments = []
                     out.append(ast)
                 if sub_begin.internal == 'comment':
-                    next_comments.append(ast[1])
+                    next_comments.append(ast)
                 have = ''
                 continue
             
             if end is not None:
                 # End doesnt match beginning. (and it should)
-                if begin.end != end.end and not (begin.allow_alt_end or end.ignore_as_alt_end):
+                if begin.end != end.end and \
+                   not (begin.allow_alt_end or end.ignore_as_alt_end):
                     raise Incorrect("ending %s != %s" % (begin.end, end.end), self, begin)
 
-                if begin.end == end.end or not (begin.ignore_alt_end or end.ignore_as_alt_end):
+                if begin.end == end.end or \
+                   not (begin.ignore_alt_end or end.ignore_as_alt_end):
                     out += self.handle(have + cur[:j], self)
-                    return self.ast(begin.name, out, comments= next_comments), cur[j + 1:]
+                    return self.ast(begin.name, out, comments=next_comments), cur[j + 1:]
 
             have += cur
             cur, n = self.readline()

@@ -20,14 +20,14 @@ parser.add_argument('--format', default=None,
                     help='Output format, defaults based on output file.')
 parser.add_argument('--which', default='cf',
                     help='What kind, sg|cf for straight graph/control flow.')
-parser.add_argument('--comments', default='no',
-                    help='Link comments aswel')
 parser.add_argument('--text', default='serpent',
                     help='How to write down code in nodes, serpent|lll')
 parser.add_argument('--symbols', default='yes',
                     help='whether to turn >= etcetera into symbols.')
 parser.add_argument('--theme', default='basic',
                     help='name of theme to use.')
+parser.add_argument('--comments', default='yes',
+                    help='Whether to include comments. no|false|yes|true')
 parser.add_argument('--uniqify', default='yes',
                     help='Whether to force all nodes to be unique, default yes. No _does not make sense for control flow!')
 args = parser.parse_args()
@@ -59,11 +59,15 @@ def _write_fun(stream, ast):
 def graph_file(which, fr, to, prog='dot', format=None, text='serpent'):
     graph = pydot.Dot('from-tree', graph_type='digraph')
     graph.set_fontname('Times-Bold')
+
+    do_comments = (args.comments.lower() in ['yes','true'])
+
     gc = GraphCode(graph=graph, write_fun=_write_fun, theme=args.theme,
-                   uniqify=args.uniqify.lower() in ['yes', 'true'])
+                   uniqify=args.uniqify.lower() in ['yes', 'true'],
+                   do_comments=do_comments)
 
     stream = open(fr)
-    tree = LLLParser(stream).parse_lll()
+    tree = LLLParser(stream, do_comments=do_comments).parse_lll()
     stream.close()
 
     if which in ['sg']:

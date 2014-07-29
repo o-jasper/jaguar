@@ -46,17 +46,22 @@ def lll_to_s_expr(ast):
                                     el, None)
                 if isinstance(el[1], astnode) and el[1][0] == 'aref':
                     enter = ['sstore', el[1][1], intermediate[i+1]]
+                    enter = astnode(enter, *ast.metadata)
+                    enter.comments = el.comments + el[1].comments
                 else:                
                     enter = ['mstore', el[1], intermediate[i + 1]]
-
-                enter = astnode(enter, *ast.metadata)
+                    enter = astnode(enter, *ast.metadata)
+                    enter.comments = el.comments
                 i += 2
             else:
                 i += 1
+
             ret.append(lll_to_s_expr(enter))
 
         assert '@' not in ret and '@@' not in ret
-        return astnode(ret, *ast.metadata)
+        ret_node = astnode(ret, *ast.metadata)
+        ret_node.comments = ast.comments
+        return ret_node
     elif is_string(ast):
         assert ast not in ['@', '@@']
         return ast
@@ -98,7 +103,10 @@ class LLLParser(SExprParser):
                 ret += [str('@@'), str(string[i+2:])]
             else:
                 ret += [str('@'), str(string[i+1:])]
-        return ret
+        ret2 = []
+        for el in ret:
+            ret2 += el.split(':')
+        return ret2
 
     def parse_lll(self, initial=''):
         return lll_to_s_expr(self.parse(initial))
@@ -185,3 +193,15 @@ class LLLWriter:
         self.write_lll_stream(stream, tree)
         stream.seek(0)  # Dont forget to read back!
         return stream.read()
+
+
+def all_comments(ast):
+    ret = []
+    if isinstance(ast, utils.astnode):
+        for el in ast.comments:
+            ret.append(el[1])
+        ret += all_comments(ast.args)
+    elif isinstance(ast, list):
+        for el in ast:
+            ret += all_comments(el)
+    return ret

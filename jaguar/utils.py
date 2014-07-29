@@ -7,6 +7,10 @@ class astnode():
         self.args = args
         self.metadata = [self.fil, self.line, self.char] = fil, line, char
 
+    @property
+    def line_i(self):
+        return self.line
+
     def listify():
         return map(lambda x: x.listfy(), self.args)
 

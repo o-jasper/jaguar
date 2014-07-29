@@ -28,9 +28,11 @@ def test_case(string, tree, o='(', c=')', white=[' ', '\t', '\n']):
         print("tree  ", tree)        
         print("result", result)
 
+
 def test_1(p=0.1, n=2, d=2):
     tree = gen_tree(p, n, d)
     test_case(repr(utils.astify(tree)), [tree])
+
 
 test_case('"string (stuff" should end', [['str', 'string (stuff'], 'should', 'end'])
 

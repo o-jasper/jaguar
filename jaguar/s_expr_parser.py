@@ -27,7 +27,9 @@ class Incorrect:
         self.be = be
 
     def __repr__(self):
-        return str(self.line_i) + ": " + self.be.name + ", " + self.be.begin + ": " + self.msg
+ #       o = str(self.line_i) + ": " + str(self.be.name) + ", "
+#        o += str(self.be.begin) + "\n" + self.msg
+        return str(self.line_i) + ": " + self.msg
 
 
 class SExprParser:

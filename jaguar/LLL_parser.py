@@ -1,56 +1,68 @@
 
 import io
 from python_2_3_compat import to_str, is_str
-from s_expr_parser import SExprParser, BeginEnd
+from s_expr_parser import SExprParser, BeginEnd, Incorrect
+from utils import astnode, is_string
 
 def assert_len(ast, length, say="wrong_length, should be"):
     if len(ast) != length:
         raise Exception(say, length, len(ast), ast)
-
-
-def lll_to_s_expr_munch(ast):
-    if len(ast) == 0:
-        return ast, []
-
-    sm_load = {'@':'mload', '@@':'sload'}
-    el = ast[0]
-    if is_str(el) and el in sm_load:
-        got,left = lll_to_s_expr_munch(ast[1:])
-        return [sm_load[el], got], left
-    elif type(el) is list and len(el) > 0 and is_str(el[0]) and el[0].lower() == 'aref':
-        assert_len(el, 2)
-        got,left = lll_to_s_expr_munch(ast[1:])
-        if type(el[1]) is list and el[1][0].lower() == 'aref':
-            assert_len(el, 2)  # (aref (aref <a>)) <b> -> (sstore <a> <b>)
-            return ['sstore', lll_to_s_expr_munch(el[1][1:])[0], got], left
-        else:  # (aref <a>) <b> -> (mstore <a> <b>)
-            return ['sstore', lll_to_s_expr_munch(el[1:])[0], got], left
-    else:
-        return lll_to_s_expr(el), ast[1:]
         
 
-# Assumes `sstore`, `mstore`, `sload`, `mload`, will do vars.
 def lll_to_s_expr(ast):
 
-    if type(ast) is list:
-        left, ret = ast, []
-        while len(left) > 0:
-            got, left = lll_to_s_expr_munch(left)
-            ret.append(got)
-        return ret
-    elif is_str(ast):
-        if len(ast) == 0:
-            raise Exception('Zero length strings not allowed in ast')
+    if isinstance(ast, astnode):
+        ms = {'@':'mload', '@@':'sload'}
+        i, ret = 0, []
+        while i < len(ast.args):
+            el = ast.args[i]
+            if el in ms:
+                top = astnode([ms[el], None], *ast.metadata)
+                add = top
+                j = i
+                while ast.args[j] in ms:
+                    if j >= len(ast.args) - 1:  # Out of space.
+                        raise Incorrect('Accessing; @@ or @ may not be last element',
+                                        None, ast)
+                    if i != j:
+                        add = astnode([ms[ast.args[j]], add], *ast.metadata)
+                    j += 1
+                top.args[1] = ast.args[j]
+                ret.append(add)
+                i = j + 1
+            else:
+                ret.append(el)
+                i += 1
+        i, ret2 = 0, []
+        while i < len(ret):
+            el = ret[i]
+            if isinstance(el, astnode) and len(el.args)>0 and el.args[0] == 'aref':
+                if i >= len(ast.args) - 1:
+                    raise Incorrect('Setting; [[..]] [...] may not be last element',
+                                    ast, None)
+                if len(el.args) != 2:
+                    raise Incorrect("Wrong number of arguments to aref ([]) %s" % el.args,
+                                    ast, None)
+                if isinstance(el.args[1], astnode) and el.args[1].args[0] == 'aref':
+                    if len(ast.args[1]) != 2:
+                        raise Incorrect('Wrong number of arguments to aref ([[]])',
+                                        None, ast)
+                    sstore_index = lll_to_s_expr(el.args[1].args[1])
+                    set_to       = lll_to_s_expr(ast.args[i+1])
+                    ret.append(astnode(['sstore', sstore_index, set_to], *ast.metadata))
+                else:
+                    mstore_index = lll_to_s_expr(el.args[1])
+                    set_to       = lll_to_s_expr(ast.args[i + 1])
+                    ret.append(astnode(['mstore', mstore_index, set_to], *ast.metadata))
+                i += 2
+            else:
+                ret2.append(lll_to_s_expr(el))
+                i += 1
 
-        assert ast not in ['@@','@']
-
-        if ast[0] == '@':  # @ straight onto a name.
-            assert len(ast) > 1
-            if ast[1] == '@':
-                assert len(ast) > 2
-                return ['sload', ast[2:]]
-            return ['mload', ast[1:]]
-
+        assert '@' not in ret2 and '@@' not in ret2
+        return astnode(ret2, *ast.metadata)
+    elif is_string(ast):
+        assert ast not in ['@', '@@']
         return ast
     else:
         raise Exception('Dont expect type in AST:', type(ast), ast)
@@ -59,30 +71,40 @@ def lll_to_s_expr(ast):
 class LLLParser(SExprParser):
     # Class essentially just stops me from having to pass these all the time.
     # Just do SExprParser().parse(), dont neccesarily need a variable.
-    def __init__(self, comment_name=None):
+    def __init__(self, stream, line_i = 0, do_comments=False, fil=''):
+        if isinstance(stream, (str, unicode)):
+            stream = io.StringIO(to_str(stream))
 
-        int_handling = ('scrub' if comment_name is None else 'str')
+        self.stream = stream
+        self.line_i = line_i
+
+        internal = ('scrub' if do_comments else 'str')
         self.start_end = [BeginEnd('[', ']', 'aref'),
-                          BeginEnd('(', ')'),
+                          BeginEnd('(', ')', 'call'),
                           BeginEnd('{', '}', 'seq'),
-                          BeginEnd(';', '\n', comment_name,
-                                   internal_handling=int_handling),
-                          BeginEnd('"', '"', 'str', internal_handling='str',
-                                   wrong_end='ignore')]
-        self.wrong_end_warning = 'warn'
-        self.white = [' ', '\t', '\n', ':']
-        self.earliest_macro = {}  # Dictionary of functions that act as macros.
+                          BeginEnd(';', '\n', 'comment', internal=internal),
+                          BeginEnd('"', '"', 'str', internal='str')]
+        self.n_max = 16
+        self.fil = fil  # Current file.
 
-    def parse_lll_stream(self, stream, initial=''):
-        return lll_to_s_expr(self.parse_stream(stream, initial))
+    def handle(self, in_string ,b):
+        ret = []
+        for string in in_string.split():
+            i = string.find('@')
+            if i == -1:
+                ret.append(str(string))
+            elif i != 0:
+                raise Incorrect('@ or @@ may not be in middle of symbol.', self, None)
+            elif str(string) in ['@', '@@']:
+                ret.append(str(string))
+            elif string[i + 1] == '@':
+                ret += [str('@@'), str(string[i+2:])]
+            else:
+                ret += [str('@'), str(string[i+1:])]
+        return ret
 
-    def parse_lll(self, string):
-        return self.parse_lll_stream(io.StringIO(to_str(string)))
-
-    def parse_lll_file(self, file, initial=''):
-        with open(file, 'r') as stream:
-            tree = self.parse_lll_stream(stream, initial)
-        return tree
+    def parse_lll(self, initial=''):
+        return lll_to_s_expr(self.parse(initial))
 
 def write_str(stream, what):
     stream.write(to_str(what))

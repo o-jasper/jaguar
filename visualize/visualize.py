@@ -16,7 +16,8 @@ themes = {'basic' :
             'false'        : [('label','false')],
             'for_edge'     : [('label','loop'), ('back_too', 'plain_edge')],
             'lll'          : [('label',' LLL')],
-            'comment'      : [],
+            'comment'      : [('shape', 'plaintext'), ('fontsize', '10')],
+            'comment_edge' : [('style', 'dashed'), ('dir', 'none')],
             'debug'        : [('label','bugifshown')]},
           'cut_corners' :
            {'pass_on'  : 'basic',
@@ -68,7 +69,8 @@ class GraphCode:
         was_ast, ret_comments = None, []
         if isinstance(ast, astnode):
             was_ast = ast
-            ret_comments = was_ast.comments
+            if self.do_comments:
+                ret_comments = was_ast.comments
             ast = ast.args
 
         if isinstance(ast, list):
@@ -86,16 +88,11 @@ class GraphCode:
                     if alt not in ['seq', '']:
                         ret_alt.append(alt)
 
-                    if isinstance(el, astnode) and self.do_comments:
-                        ret_comments += comments
-
+                    ret_comments += comments
                     ret_buds += buds
 
                 if len(ret_alt) == 0:
                     ret_alt = ['_seq_']
-
-                if self.do_comments and was_ast is not None:
-                    ret_comments += was_ast.comments
 
                 return ret_alt, ret_buds, ret_comments
         else:
@@ -151,10 +148,10 @@ class GraphCode:
 
     def add_comments(self, comments, fr):
         if self.do_comments:
-            for comment in comments:  # Comments and edges to there.
-                self.add_node(comment[1], 'edge')
+            for c in comments:  # Comments and edges to there.
+                node = self.add_node(c[1], 'comment')
                 if fr is not None:
-                    self.add_edge(fr, comment[1], 'comment_edge')
+                    self.add_edge(fr, node, 'comment_edge')
 
         
     def cf_add_node(self, added, fr, which, edge_which):

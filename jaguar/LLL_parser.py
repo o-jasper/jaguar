@@ -197,7 +197,7 @@ class LLLWriter:
 
 def all_comments(ast):
     ret = []
-    if isinstance(ast, utils.astnode):
+    if isinstance(ast, astnode):
         for el in ast.comments:
             ret.append(el[1])
         ret += all_comments(ast.args)

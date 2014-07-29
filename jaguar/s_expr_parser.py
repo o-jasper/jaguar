@@ -47,10 +47,7 @@ class SExprParser:
     # Class essentially just stops me from having to pass these all the time.
     # Just do SExprParser().parse(), dont neccesarily need a variable.
     def __init__(self, stream, line_i = 0,
-                 start_end = [BeginEnd('(', ')', 'call'),
-                              BeginEnd(';', '\n', 'comment', internal='comment',
-                                       ignore_alt_end=True, ignore_as_alt_end=True),
-                              BeginEnd('"', '"',  'str', internal='str')],
+                 start_end = None, do_comments=True,
                  white=[' ', '\t', '\n'],
                  earliest_macro={}, fil='',
                  handle = lambda a,b: str(a).split()):
@@ -60,6 +57,12 @@ class SExprParser:
         self.stream = stream
         self.line_i = line_i
         self.start_end = start_end
+        if start_end is None:
+            comment_internal = ('comment' if do_comments else 'ignore')
+            self.start_end = [BeginEnd('(', ')', 'call'),
+                              BeginEnd(';', '\n', 'comment', internal=comment_internal,
+                                       ignore_alt_end=True, ignore_as_alt_end=True),
+                              BeginEnd('"', '"',  'str', internal='str')]
         self.n_max = 16
         self.fil = fil  # Current file.
         self.handle = handle

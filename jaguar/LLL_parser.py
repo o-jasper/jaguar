@@ -67,17 +67,18 @@ def lll_to_s_expr(ast):
 class LLLParser(SExprParser):
     # Class essentially just stops me from having to pass these all the time.
     # Just do SExprParser().parse(), dont neccesarily need a variable.
-    def __init__(self, stream, line_i = 0, fil=''):
+    def __init__(self, stream, line_i = 0, fil='', do_comments=True):
         if isinstance(stream, (str, unicode)):
             stream = io.StringIO(to_str(stream))
 
         self.stream = stream
         self.line_i = line_i
 
+        comments_internal = ('comment' if do_comments else 'ignore')
         self.start_end = [BeginEnd('[', ']', 'aref'),
                           BeginEnd('(', ')', 'call'),
                           BeginEnd('{', '}', 'seq'),
-                          BeginEnd(';', '\n', 'comment', internal='comment',
+                          BeginEnd(';', '\n', 'comment', internal=comments_internal,
                                    ignore_alt_end=True, ignore_as_alt_end=True),
                           BeginEnd('"', '"', 'str', internal='str')]
         self.n_max = 16

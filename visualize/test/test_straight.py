@@ -7,6 +7,7 @@ sys.path.append(os.path.join(fromdir, '..'))
 sys.path.append(os.path.join(fromdir, '../../jaguar'))
 
 from visualize import GraphCode
+import utils
 
 # Note.. s_expr_parser test uses the same code..
 def gen_tree(p, n, d):
@@ -18,6 +19,6 @@ def gen_tree(p, n, d):
             out.append(str(random()))
     return out
 
-g = GraphCode().straight(gen_tree(0.2, 2, 2))
+g = GraphCode().straight(utils.astify(gen_tree(0.2, 2, 2)))
 
 g.write(fromdir + 'straight.svg', format='svg')

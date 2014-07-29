@@ -8,28 +8,38 @@ from python_2_3_compat import to_str, is_str
 
 class BeginEnd:
     def __init__(self, begin, end, name,
-                 allow_different_end = False, seek_different_end = False,
+                 allow_alt_end=None, seek_alt_end=False,
+                 ignore_alt_end=False, ignore_as_alt_end=False,
                  internal='continue'):
         self.begin = begin  # What begins and ends a expression.
         self.end   = end
         self.name  = name   # Name of the expression.
-        self.allow_different_end = allow_different_end  # Whether other enders can stop it.
-        self.seek_different_end  = seek_different_end   # Ignore other endings for speed.
+        self.ignore_alt_end = ignore_alt_end
+        self.allow_alt_end  = allow_alt_end  # Whether other enders can stop it.        
+        if allow_alt_end is None:
+            self.allow_alt_end = ignore_alt_end
+        self.ignore_as_alt_end = ignore_as_alt_end
+        self.seek_alt_end   = seek_alt_end   # May in future ignore other endings.
         self.internal   = internal    # What to do with contents.
 
     def __repr__(self):
         return self.name + " " + self.begin
 
 class Incorrect:
-    def __init__(self, msg, parser, be=None):
+    def __init__(self, msg, obj, be=None):
         self.msg = msg
-        self.line_i = parser.line_i
+        if obj is not None:
+            self.line_i = obj.line_i
+        else:
+            self.line_i = 'u'
         self.be = be
+        self.obj = obj
 
     def __repr__(self):
- #       o = str(self.line_i) + ": " + str(self.be.name) + ", "
-#        o += str(self.be.begin) + "\n" + self.msg
-        return str(self.line_i) + ": " + self.msg
+        o = str(self.line_i) + ": " + self.msg
+        if self.obj is not None:
+            o += '; ' + repr(self.obj)
+        return o
 
 
 class SExprParser:
@@ -38,7 +48,8 @@ class SExprParser:
     # Just do SExprParser().parse(), dont neccesarily need a variable.
     def __init__(self, stream, line_i = 0,
                  start_end = [BeginEnd('(', ')', 'call'),
-                              BeginEnd(';', '\n', 'comment', internal='scrub'),
+                              BeginEnd(';', '\n', 'comment', internal='scrub',
+                                       ignore_alt_end=True, ignore_as_alt_end=True),
                               BeginEnd('"', '"',  'str', internal='str')],
                  white=[' ', '\t', '\n'],
                  earliest_macro={}, fil='',
@@ -55,14 +66,14 @@ class SExprParser:
 
 
     def readline(self):  # Helps reading lines and the number we have read.
-        n, line = 0, self.stream.readline()
+        n, line = 1, self.stream.readline()
 
         while line == '' and n < self.n_max:  # TODO need stream.eof
             line, n = self.stream.readline(), n + 1
         self.line_i += n
         return line + '\n', n
 
-    # Convenience function. Gets begin/end at position, if available.
+    # Gets begin/end at position, if available.
     def begin_i(self, string):
         k, which = len(string), None
         for el in self.start_end:
@@ -109,7 +120,9 @@ class SExprParser:
         while True:
             i, sub_begin = self.begin_i(cur)
             j, end = self.end_i(cur)
-            #print(i,j, sub_begin, end)
+            if j == -1:
+                j = len(cur)
+
             if (sub_begin is not None) and i <= j:
                 out += self.handle(have + cur[:i], self)
                 if sub_begin.internal == 'continue':
@@ -117,21 +130,18 @@ class SExprParser:
                 elif sub_begin.internal in ['str','scrub']:
                     ast, cur = self.parse_plain(sub_begin, cur[i + 1:])
                 if sub_begin.internal != 'scrub':
-                    out.append(ast)    
+                    out.append(ast)
+                have = ''
                 continue
             
-            if begin.seek_different_end and end is not None:
+            if end is not None:
                 # End doesnt match beginning. (and it should)
-                if begin is not end and not begin.allow_different_end:
-                    raise Incorrect("ending", self, begin)
+                if begin.end != end.end and not (begin.allow_alt_end or end.ignore_as_alt_end):
+                    raise Incorrect("ending %s != %s" % (begin.end, end.end), self, begin)
 
-                out += self.handle(have + cur[:i], self)
-                return self.ast(begin.name, out), cur[i + 1:]
-            else:
-                i = cur.find(begin.end)
-                if i != -1:
-                    out += self.handle(have + cur[:i], self)
-                    return self.ast(begin.name, out), cur[i + 1:]
+                if begin.end == end.end or not (begin.ignore_alt_end or end.ignore_as_alt_end):
+                    out += self.handle(have + cur[:j], self)
+                    return self.ast(begin.name, out), cur[j + 1:]
 
             have += cur
             cur, n = self.readline()

@@ -11,9 +11,6 @@ class astnode():
     def line_i(self):
         return self.line
 
-    def listify():
-        return map(lambda x: x.listfy(), self.args)
-
     def __repr__(self):
         if len(self.args) == 0:
             return '()'
@@ -27,6 +24,11 @@ class astnode():
         o += ')'
         return o
 
+    def __len__(self):
+        return len(self.args)
+
+    def __getitem__(self, i):
+        return self.args[i]
 
 def astify(s, fil='', line=0, char=0):
     if isinstance(s, astnode):

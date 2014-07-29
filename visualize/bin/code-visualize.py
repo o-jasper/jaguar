@@ -37,14 +37,13 @@ import pydot
 from visualize import GraphCode
 from LLL_parser import LLLParser, LLLWriter
 
-import utils
-from write_serpent import write_serpent  #serialize.
+import utils, write_serpent
 
 
 def _write_fun(stream, ast):
     internal = io.StringIO()
     if args.text =='serpent':
-        write_serpent.serialize(utils.astify(ast), internal)
+        write_serpent.write_serpent(utils.astify(ast), internal)
     else:
         LLLWriter().write_lll_stream(internal, ast)
     internal.seek(0)
@@ -57,16 +56,18 @@ def _write_fun(stream, ast):
         stream.write(string[:-1] if string[-1]=='\n' else string)
 
 
-def graph_file(which, fr, to, prog='dot', format=None,
-               comment_name=None, text='serpent'):
+def graph_file(which, fr, to, prog='dot', format=None, text='serpent'):
     graph = pydot.Dot('from-tree', graph_type='digraph')
     graph.set_fontname('Times-Bold')
     gc = GraphCode(graph=graph, write_fun=_write_fun, theme=args.theme,
                    uniqify=args.uniqify.lower() in ['yes', 'true'])
 
-    tree = LLLParser(comment_name=comment_name).parse_lll_file(fr)
+    stream = open(fr)
+    tree = LLLParser(stream).parse_lll()
+    stream.close()
+
     if which in ['sg']:
-        g = gc.straight(['root'] + tree)
+        g = gc.straight(tree)
     elif which in ['cf']:
         g = gc.control_flow(tree)
 
@@ -76,5 +77,4 @@ def graph_file(which, fr, to, prog='dot', format=None,
 
 
 graph_file(args.which, args.input, args.output, args.prog,
-           args.format, 'comment' if args.comments == 'yes' else None,
-           text=args.text)
+           args.format, text=args.text)

@@ -6,6 +6,7 @@ import io
 from python_2_3_compat import to_str, is_str
 
 from LLL_parser import LLLWriter
+from utils import astnode, is_string
 
 themes = {'basic' :
            {'default'      : [('fontname', 'Arial')],
@@ -34,7 +35,7 @@ class GraphCode:
         self.graph = graph or pydot.Dot('from-tree', graph_type='digraph')
         self.fr = fr
         self.uniqify = uniqify
-        self.subnodes = {'lll':"_LLL_", 'comment':""}
+        self.budders = {'lll':"_LLL_", 'comment':""}
 
         self.attrs = attrs or themes[theme]
         self.calculated_attrs = {}
@@ -43,8 +44,10 @@ class GraphCode:
         self.i = 0
 
     def cf_expr_str(self, seq):
-        assert type(seq) is list
-        assert len(seq) > 0
+        if is_string(seq):
+            return seq
+        if not isinstance(seq, (list, astnode)) or len(seq) == 0:
+            raise Exception(seq, type(seq))
         if 'cut_tops' in self.attrs and seq[0] in self.attrs['cut_tops']:
             seq = seq[1:]
             assert len(seq) > 0
@@ -57,25 +60,31 @@ class GraphCode:
         return stream.read()
 
     # Checks if parts of expressions need more nodes.
-    def control_flow_fix(self, ast):
-        if type(ast) == list:
+    def control_flow_budding(self, ast):
+        line_i = -1
+        if isinstance(ast, astnode):
+            line_i = ast.line_i
+            ast = ast.args
+        if isinstance(ast, list):
             if len(ast) == 0:
                 return '()', []
 
-            if is_str(ast[0]) and str(ast[0].lower()) in self.subnodes:
+            if is_str(ast[0]) and str(ast[0].lower()) in self.budders:
                 name = ast[0].lower()
-                use_str = self.subnodes[name]
+                use_str = self.budders[name]
+                print(';', use_str, line_i)
+                print('-', ast)
                 return use_str, [[name] + ast[1:]]
             else:
-                ret_alt, ret_llls = [], []
+                ret_alt, ret_buds = [], []
                 for el in ast:
-                    alt, llls = self.control_flow_fix(el)
+                    alt, buds = self.control_flow_budding(el)
                     if alt not in ['seq', '']:
                         ret_alt.append(alt)
-                    ret_llls = ret_llls + llls
+                    ret_buds = ret_buds + buds
                 if len(ret_alt) == 0:
                     ret_alt = ['_seq_']
-                return ret_alt, ret_llls
+                return ret_alt, ret_buds
         else:
             return ast, []
 
@@ -128,9 +137,11 @@ class GraphCode:
             self.graph.add_edge(back)
 
     def cf_add_node(self, added, fr, which, edge_which):
-        llls = []
-        if type(added) is list:
-            added, llls = self.control_flow_fix(added)
+        buds = []
+        if isinstance(added, astnode):
+            added = added.args
+        if isinstance(added, list):
+            added, buds = self.control_flow_budding(added)
             added = self.cf_expr_str(added)
 
         added = self.add_node(added, which)
@@ -138,26 +149,26 @@ class GraphCode:
         if fr is not None:
             self.add_edge(fr, added, edge_which)
 
-        for lll in llls:
-            self.control_flow([lll[1]], added, lll[0]) #'lll')
+        for bud in buds:
+#            if len(bud) < 2:
+ #               raise Exception(bud)
+            self.control_flow(bud[1:], added, bud[0])
         return added
 
     def control_flow(self, ast, fr=None, fr_which='body_edge'):
-        assert type(ast) is list
-
         fr = fr or self.fr
     
         i, j = 0, 0
         while i < len(ast):
     
             el = ast[i]
-            if type(el) is list:
+            if isinstance(el, astnode):
                 if len(el) == 0:
                     raise Exception('Zero length entry?', i, ast)
     
-                pre_n = {'when' : (2, 'true'), 'unless' : (2, 'false'),
+                pre_n = {'when' : (2, 'true'),  'unless' : (2, 'false'),
                           'for' : (4, 'for_edge'), 'seq' : (1,None),
-                          'lll' : (1, 'lll'), 'if' : (None,None)}
+                          'lll' : (1, 'lll'),       'if' : (None,None)}
                 name = el[0].lower()
                 if name in pre_n:
                     if j < i-1:  # Collect stuff in between.
@@ -166,7 +177,9 @@ class GraphCode:
                     j = i + 1
 
                     if name == 'if':
-                        assert len(el) in [3,4]  # The condition.
+                        if len(el) not in [4,5]:
+                            raise Exception(len(el), el)
+                        assert len(el) in [4,5]  # The condition.
                         fr = self.cf_add_node(el[:2], fr, name, fr_which)
                         self.control_flow([el[2]], fr, 'true')
                         if len(el) == 4:
@@ -198,16 +211,18 @@ class GraphCode:
     def straight(self, tree, fr=None):
         fr = fr or self.fr
 
-        if type(tree) is list:
+        if isinstance(tree, astnode):
             if len(tree) > 0:
-                if type(tree[0]) != str:
-                    raise Exception('First argument not name', tree)
+                if not is_string(tree[0]):
+                    raise Exception('First argument not name', tree, type(tree[0]))
                 root = self.sg_add_node(tree[0], fr)
         
                 for el in tree[1:]:
                     self.straight(el, root)
             else:
                 self.sg_add_node('()', fr)
-        else:
+        elif is_string(tree):
             self.sg_add_node(tree, fr)
+        else:
+            raise Exception(tree, type(tree))
         return self.graph

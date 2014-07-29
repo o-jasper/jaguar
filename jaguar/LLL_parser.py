@@ -13,54 +13,50 @@ def lll_to_s_expr(ast):
 
     if isinstance(ast, astnode):
         ms = {'@':'mload', '@@':'sload'}
-        i, ret = 0, []
-        while i < len(ast.args):
-            el = ast.args[i]
+        i, intermediate = 0, []
+        while i < len(ast):
+            el = ast[i]
             if el in ms:
                 top = astnode([ms[el], None], *ast.metadata)
                 add = top
                 j = i
-                while ast.args[j] in ms:
-                    if j >= len(ast.args) - 1:  # Out of space.
+                while ast[j] in ms:
+                    if j >= len(ast) - 1:  # Out of space.
                         raise Incorrect('Accessing; @@ or @ may not be last element',
                                         None, ast)
                     if i != j:
-                        add = astnode([ms[ast.args[j]], add], *ast.metadata)
+                        add = astnode([ms[ast[j]], add], *ast.metadata)
                     j += 1
-                top.args[1] = ast.args[j]
-                ret.append(add)
+                top.args[1] = ast[j]
+                intermediate.append(add)
                 i = j + 1
             else:
-                ret.append(el)
+                intermediate.append(el)
                 i += 1
-        i, ret2 = 0, []
-        while i < len(ret):
-            el = ret[i]
-            if isinstance(el, astnode) and len(el.args)>0 and el.args[0] == 'aref':
-                if i >= len(ast.args) - 1:
+        i, ret = 0, []
+        while i < len(intermediate):
+            el = intermediate[i]
+            enter = el
+            if isinstance(el, astnode) and len(el.args)>0 and el[0] == 'aref':
+                if i >= len(intermediate) - 1:
                     raise Incorrect('Setting; [[..]] [...] may not be last element',
-                                    ast, None)
-                if len(el.args) != 2:
-                    raise Incorrect("Wrong number of arguments to aref ([]) %s" % el.args,
-                                    ast, None)
-                if isinstance(el.args[1], astnode) and el.args[1].args[0] == 'aref':
-                    if len(ast.args[1]) != 2:
-                        raise Incorrect('Wrong number of arguments to aref ([[]])',
-                                        None, ast)
-                    sstore_index = lll_to_s_expr(el.args[1].args[1])
-                    set_to       = lll_to_s_expr(ast.args[i+1])
-                    ret.append(astnode(['sstore', sstore_index, set_to], *ast.metadata))
-                else:
-                    mstore_index = lll_to_s_expr(el.args[1])
-                    set_to       = lll_to_s_expr(ast.args[i + 1])
-                    ret.append(astnode(['mstore', mstore_index, set_to], *ast.metadata))
+                                    el, None)
+                if len(el) != 2:
+                    raise Incorrect("Wrong number of arguments to aref ([])",
+                                    el, None)
+                if isinstance(el[1], astnode) and el[1][0] == 'aref':
+                    enter = ['sstore', el[1][1], intermediate[i+1]]
+                else:                
+                    enter = ['mstore', el[1], intermediate[i + 1]]
+
+                enter = astnode(enter, *ast.metadata)
                 i += 2
             else:
-                ret2.append(lll_to_s_expr(el))
                 i += 1
+            ret.append(lll_to_s_expr(enter))
 
-        assert '@' not in ret2 and '@@' not in ret2
-        return astnode(ret2, *ast.metadata)
+        assert '@' not in ret and '@@' not in ret
+        return astnode(ret, *ast.metadata)
     elif is_string(ast):
         assert ast not in ['@', '@@']
         return ast
@@ -71,18 +67,18 @@ def lll_to_s_expr(ast):
 class LLLParser(SExprParser):
     # Class essentially just stops me from having to pass these all the time.
     # Just do SExprParser().parse(), dont neccesarily need a variable.
-    def __init__(self, stream, line_i = 0, do_comments=False, fil=''):
+    def __init__(self, stream, line_i = 0, fil=''):
         if isinstance(stream, (str, unicode)):
             stream = io.StringIO(to_str(stream))
 
         self.stream = stream
         self.line_i = line_i
 
-        internal = ('scrub' if do_comments else 'str')
         self.start_end = [BeginEnd('[', ']', 'aref'),
                           BeginEnd('(', ')', 'call'),
                           BeginEnd('{', '}', 'seq'),
-                          BeginEnd(';', '\n', 'comment', internal=internal),
+                          BeginEnd(';', '\n', 'comment', internal='scrub',
+                                   ignore_alt_end=True, ignore_as_alt_end=True),
                           BeginEnd('"', '"', 'str', internal='str')]
         self.n_max = 16
         self.fil = fil  # Current file.

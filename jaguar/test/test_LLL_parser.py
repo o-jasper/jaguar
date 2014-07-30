@@ -1,5 +1,4 @@
-import os.path
-import sys
+import os.path, sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -29,3 +28,5 @@ case(""" {
 
 # Not equal after because case get bludgeoned.
 case('(SEQ a b c)', '(top {a b c})', False)
+
+print("RAN: " + str(os.path.basename(__file__)))

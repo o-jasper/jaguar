@@ -1,12 +1,9 @@
 
-import os.path
-import io
-import sys
+import os.path, io, sys
 from random import random
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from python_2_3_compat import to_str, is_str
 from s_expr_parser import SExprParser#, s_expr_str
 import utils
 
@@ -44,3 +41,5 @@ test_case("bla 123 (45(678      af)sa faf((a sf))  (a) sfsa) ;do not include",
 # IMO Should have been caught in a test and not ended up downstream.
 for i in range(200):
     test_1()
+
+print("RAN: " + str(os.path.basename(__file__)))

@@ -5,5 +5,5 @@ LLL:
 	python2 test_LLL_parser.py
 
 s_expr:
-	python2 test_LLL_parser.py
+	python2 test_s_expr_parser.py
 

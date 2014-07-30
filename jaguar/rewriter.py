@@ -1,6 +1,6 @@
 from parser import parse
 import utils
-token, astnode = utils.token, utils.astnode
+from utils import astnode
 
 # All AST rewrite rules go here
 #
@@ -215,18 +215,18 @@ constants = [
 
 
 def _getvar(ast):
-    if isinstance(ast, token) and not utils.is_numeric(ast.val):
-        if ast.val not in map(lambda x: x[0], constants):
-            if ast.val[0] != '_':
-                inner = token('__'+ast.val, *ast.metadata)
-                return astnode('MLOAD', [inner], *ast.metadata)
+    if utils.is_string(ast) and not utils.is_numeric(ast) and \
+       ast not in map(lambda x: x[0], constants) and \
+       ast[0] != '_':
+        inner = '__' + ast
+        return astnode(['MLOAD', inner])
 
 
 def _setvar(ast):
     if isinstance(ast, astnode) and ast.fun == 'set':
-        prefix = '__' if ast.args[0].val[0] != '_' else ''
-        inner = token(prefix+ast.args[0].val, *ast.args[0].metadata)
-        return astnode('MSTORE', [inner, ast.args[1]], *ast.metadata)
+        prefix = '__' if ast[1][0] != '_' else ''
+        inner = prefix + ast[1]
+        return astnode(['MSTORE', inner, ast[2]], *ast.metadata)
 
 synonyms = [
     ['|', 'OR'],
@@ -271,19 +271,19 @@ mathfuncs = [
 
 def _import(ast):
     if isinstance(ast, astnode) and ast.fun == 'import':
-        filename = ast.args[0].val
+        filename = ast[1]
         if filename[0] == '"':
             filename = filename[1:-1]
-        x = preprocess(parse(open(filename).read(), ast.args[0].val))
-        return astnode('code', [x], *ast.metadata)
+        x = preprocess(parse(open(filename).read(), ast[1]))
+        return astnode(['code', x], *ast.metadata)
 
 
 def _inset(ast):
     if isinstance(ast, astnode) and ast.fun == 'inset':
-        filename = ast.args[0].val
+        filename = ast[1]
         if filename[0] == '"':
             filename = filename[1:-1]
-        return parse(open(filename).read(), ast.args[0].val)
+        return parse(open(filename).read(), ast[1])
 
 
 label_counter = [0]
@@ -298,10 +298,10 @@ def rewrite(ast):
         if not ast2:
             break
         ast = ast2
-    if isinstance(ast, token):
+    if utils.is_string(ast):
         return ast
     else:
-        return astnode(ast.fun, map(rewrite, ast.args), *ast.metadata)
+        return astnode([ast.fun] + map(rewrite, ast.args[1:]), *ast.metadata)
 
 
 def analyze_and_varify_ast(ast, data):
@@ -310,20 +310,20 @@ def analyze_and_varify_ast(ast, data):
             data['alloc_used'] = True
         if ast.fun == 'lll':
             inner = {"varhash": {}, "inner": []}
-            argz = [finalize(ast.args[0], inner),
-                    analyze_and_varify_ast(ast.args[1], data)]
+            argz = [finalize(ast[1], inner),
+                    analyze_and_varify_ast(ast[2], data)]
             data["inner"].append(inner)
         else:
-            argz = map(lambda x: analyze_and_varify_ast(x, data), ast.args)
-        return astnode(ast.fun, argz, *ast.metadata)
-    elif utils.is_numeric(ast.val):
-        return token(str(utils.numberize(ast.val)), *ast.metadata)
+            argz = map(lambda x: analyze_and_varify_ast(x, data), ast.args[1:])
+        return astnode([ast.fun] + argz, *ast.metadata)
+    elif utils.is_numeric(ast):
+        return str(utils.numberize(ast))
     else:
-        if ast.val not in data['varhash']:
-            data['varhash'][ast.val] = str(len(data['varhash']) * 32)
-        if ast.val == '__msg.data':
+        if ast not in data['varhash']:
+            data['varhash'][ast] = str(len(data['varhash']) * 32)
+        if ast == '__msg.data':
             data['msgdata_used'] = True
-        return token(data['varhash'][ast.val], *ast.metadata)
+        return data['varhash'][ast]
 
 
 def finalize(expr, data=None):
@@ -331,20 +331,20 @@ def finalize(expr, data=None):
     e = analyze_and_varify_ast(expr, data)
     if len(data['varhash']) > 0 and data.get('alloc_used'):
         memsz = len(data['varhash']) * 32 - 1
-        inner = astnode('MSTORE8', map(token, map(str, [memsz, 0])))
-        e = astnode('seq', [inner, e])
+        inner = astnode(['MSTORE8'] + map(str, [memsz, 0]))
+        e = astnode(['seq', inner, e])
     if data.get('msgdata_used'):
-        msg_data_addr = token(data['varhash']['__msg.data'])
-        alloc = astnode('alloc', [astnode('CALLDATASIZE', [])])
-        node1 = astnode('MSTORE', [msg_data_addr, alloc])
-        tok3 = astnode('CALLDATASIZE', [])
-        node2 = astnode('CALLDATACOPY', [token(0), msg_data_addr, tok3])
-        e = astnode('seq', [node1, node2, e])
+        msg_data_addr = data['varhash']['__msg.data']
+        alloc = astnode(['alloc', astnode(['CALLDATASIZE'])])
+        node1 = astnode(['MSTORE', msg_data_addr, alloc])
+        tok3 = astnode(['CALLDATASIZE'])
+        node2 = astnode(['CALLDATACOPY', '0', msg_data_addr, tok3])
+        e = astnode(['seq', node1, node2, e])
     return e
 
 
 def preprocess(ast):
-    return astnode('outer', [ast], *ast.metadata)
+    return astnode(['outer', ast], *ast.metadata)
 
 
 def compile_to_lll(ast):
@@ -368,13 +368,12 @@ def get_macro_vars(pattern, ast):
     if not isinstance(pattern, list):
         if pattern[0] == '<' and pattern[-1] == '>':
             d[pattern[1:-1]] = ast
-        elif isinstance(ast, astnode) or pattern != ast.val:
+        elif isinstance(ast, astnode) or pattern != ast:
             return None
     else:
-        if not isinstance(ast, astnode) or len(ast.args) != len(pattern[1:]):
+        if not isinstance(ast, astnode) or len(ast) - 1 != len(pattern[1:]):
             return None
-        funarg = token(ast.fun, *ast.metadata)
-        for mitem, astitem in zip(pattern, [funarg] + ast.args):
+        for mitem, astitem in zip(pattern, ast.args):
             subdict = get_macro_vars(mitem, astitem)
             if subdict is None:
                 return None
@@ -389,15 +388,19 @@ def set_macro_vars(subst, pattern, anchor, lc):
         if pattern[0] == '<' and pattern[-1] == '>':
             return subst[pattern[1:-1]]
         elif pattern[0] == '@':
-            return token('_temp_'+str(lc)+'_'+pattern[1:], *anchor.metadata)
+            return '_temp_'+str(lc)+'_'+pattern[1:]
         else:
-            return token(pattern, *anchor.metadata)
+            return pattern
     else:
         f = lambda ast: set_macro_vars(subst, ast, anchor, lc)
+        args = [pattern[0]] + map(f, pattern[1:])
         if isinstance(pattern, list):
-            return astnode(pattern[0], map(f, pattern[1:]), *anchor.metadata)
+            if utils.is_string(anchor):
+                return astnode(args)
+            else:
+                return astnode(args, *anchor.metadata)
         else:
-            return token(pattern, *anchor.metadata)
+            return pattern
 
 
 def simple_macro(args):
@@ -416,7 +419,7 @@ def synonym_macro(args):
 
     def app(ast):
         if isinstance(ast, astnode) and ast.fun == old:
-            return astnode(new, ast.args, *ast.metadata)
+            return astnode([new] + ast.args[1:], *ast.metadata)
     return app
 
 
@@ -426,12 +429,12 @@ def math_macro(args):
     def app(ast):
         if isinstance(ast, astnode) and ast.fun == head:
             funargs = []
-            for a in ast.args:
-                if isinstance(a, astnode) or not utils.is_numeric(a.val):
+            for a in ast.args[1:]:
+                if isinstance(a, astnode) or not utils.is_numeric(a):
                     return
                 else:
-                    funargs.append(utils.numberize(a.val))
-            return token(str(transform(*funargs)), *ast.metadata)
+                    funargs.append(utils.numberize(a))
+            return str(transform(*funargs))
     return app
 
 
@@ -446,22 +449,22 @@ def gensym(name='#gen'):
 def _case(ast):
 
     if isinstance(ast, astnode) and ast.fun == 'case':
-        assert len(ast.args) == 3  # No cases, or plain wrong.
-        assert ast.args[1].fun == 'seq' and len(ast.args[1].args) == 0
-        var, val = gensym('#casevar'), ast.args[0]
+        assert len(ast.args) == 4  # No cases, or plain wrong.
+        assert ast[2].fun == 'seq' and len(ast[2]) == 1
+        var, val = gensym('#casevar'), ast[1]
 
         def c(a):
             assert isinstance(a, astnode)
             if a.fun == 'default':
-                assert len(a.args) == 1
-                return a.args[0]
+                assert len(a) == 2
+                return a[1]
             elif a.fun == 'of':
-                assert len(a.args) in [2,3]
-                here = ['if', ['==', var, a.args[0]], a.args[1]]
-                if len(a.args) == 3:
-                    here.append(c(a.args[2]))
+                assert len(a) in [3,4]
+                here = ['if', ['==', var, a[1]], a[2]]
+                if len(a) == 4:
+                    here.append(c(a[3]))
                 return here
-        return utils.astify(c(ast.args[2]))
+        return utils.astify(c(ast[3]))
 
 macros = \
     map(simple_macro, preparing_simple_macros) + \

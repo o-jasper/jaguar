@@ -2,7 +2,6 @@
 import re
 from parser import parse
 import utils
-token, astnode = utils.token, utils.astnode
 
 from opcodes import opcodes, reverse_opcodes
 
@@ -22,8 +21,8 @@ def compile_lll(ast):
     symb = mksymbol()
     tokenify2 = lambda x: utils.tokenify(x, *ast.metadata)
     # Literals
-    if not isinstance(ast, astnode):
-        return [token(utils.numberize(ast.val), *ast.metadata)]
+    if not isinstance(ast, utils.astnode):
+        return [utils.numberize(ast)]
     subcodes = map(compile_lll, ast.args)
     # Seq
     if ast.fun == 'seq':
@@ -60,7 +59,7 @@ def compile_lll(ast):
         o = []
         for subcode in subcodes[::-1]:
             o.extend(subcode)
-        out = o + [token(ast.fun, *ast.metadata)]
+        out = o + [ast.fun]
     return map(tokenify2, out)
 
 
@@ -75,29 +74,29 @@ def dereference(c):
     beginning_stack = [0]
     while len(iq):
         front = iq.pop(0)
-        if not utils.is_numeric(front.val) and front.val[0] == '~':
-            labelmap[front.val[1:]] = pos - beginning_stack[-1]
-        elif front.val == '#CODE_BEGIN':
+        if not utils.is_numeric(front) and front[0] == '~':
+            labelmap[front[1:]] = pos - beginning_stack[-1]
+        elif front == '#CODE_BEGIN':
             beginning_stack.append(pos)
-        elif front.val == '#CODE_END':
+        elif front == '#CODE_END':
             beginning_stack.pop()
         else:
             mq.append(front)
-            if utils.is_numeric(front.val):
-                pos += 1 + max(1, utils.log256(front.val))
-            elif front.val[:1] == '$':
+            if utils.is_numeric(front):
+                pos += 1 + max(1, utils.log256(front))
+            elif front[:1] == '$':
                 pos += label_length + 1
             else:
                 pos += 1
     oq = []
     for m in mq:
         oqplus = []
-        if utils.is_numeric(m.val):
-            L = max(1, utils.log256(m.val))
+        if utils.is_numeric(m):
+            L = max(1, utils.log256(m))
             oqplus.append('PUSH' + str(L))
-            oqplus.extend(utils.tobytearr(m.val, L))
-        elif m.val[:1] == '$':
-            vals = m.val[1:].split('.')
+            oqplus.extend(utils.tobytearr(m, L))
+        elif m[:1] == '$':
+            vals = m[1:].split('.')
             if len(vals) == 1:
                 oqplus.append('PUSH'+str(label_length))
                 oqplus.extend(utils.tobytearr(labelmap[vals[0]], label_length))

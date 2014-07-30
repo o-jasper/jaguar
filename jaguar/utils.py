@@ -12,6 +12,10 @@ class astnode():
     def line_i(self):
         return self.line
 
+    @property
+    def fun(self):
+        return self.args[0]
+
     def __repr__(self):
         if len(self.args) == 0:
             return '()'

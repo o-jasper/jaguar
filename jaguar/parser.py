@@ -1,6 +1,6 @@
 import re
 import utils
-token, astnode = utils.token, utils.astnode
+from utils import astnode
 
 
 # Number of spaces at the beginning of a line
@@ -69,13 +69,13 @@ def parse_lines(lns, fil='main', voffset=0, hoffset=0):
         # It is a continued body.
         # For instance `if` is continued with `elif` and `else`
         if u.fun in bodied_continued and out.fun in bodied_continued[u.fun]:
-                while len(u.args) == 3:
+                while len(u.args) == 4:
                     u = u.args[-1]
                 u.args.append(out.args[-1] if out.fun == 'else' else out)
         else:
             # Normal case: just add the parsed line to the output
             o.append(out)
-    return o[0] if len(o) == 1 else astnode('seq', o, fil, voffset, hoffset)
+    return o[0] if len(o) == 1 else astnode(['seq'] + o, fil, voffset, hoffset)
 
 
 # Tokens contain one or more chars of the same type, with a few exceptions
@@ -107,13 +107,13 @@ def tokenize(ln, fil='main', linenum=0, charnum=0):
     def nxt():
         global cur
         if len(cur) >= 2 and cur[-1] in ['-', '#']:
-            o.append(token(cur[:-1], fil, linenum, charnum + i - len(cur)))
-            o.append(token(cur[-1], fil, linenum, charnum + i))
+            o.append(cur[:-1])
+            o.append(cur[-1])
         elif len(cur) >= 3 and cur[-2:] == '//':
-            o.append(token(cur[:-2], fil, linenum, charnum + i - len(cur)))
-            o.append(token(cur[-2:], fil, linenum, charnum + i))
+            o.append(cur[:-2])
+            o.append(cur[-2:])
         elif len(cur.strip()) >= 1:
-            o.append(token(cur, fil, linenum, charnum + i - len(cur)))
+            o.append(cur)
         cur = ''
     # Main loop
     while i < len(ln):
@@ -150,7 +150,7 @@ def tokenize(ln, fil='main', linenum=0, charnum=0):
             tp = c
             i += 1
     nxt()
-    if len(o) > 0 and o[-1].val in [':', ':\n', '\n']:
+    if len(o) > 0 and o[-1] in [':', ':\n', '\n']:
         o.pop()
     if tp in ['squote', 'dquote']:
         raise Exception("Unclosed string: "+ln)
@@ -208,12 +208,12 @@ bodied_continued = {'elif': ['elif', 'else'],
 
 
 def is_alphanum(token):
-    if token is None or isinstance(token, astnode) or token.val in precedence:
+    if token is None or isinstance(token, astnode) or token in precedence:
         return False
-    elif re.match('^[0-9a-zA-Z\-\._]*$', token.val):
+    elif re.match('^[0-9a-zA-Z\-\._]*$', token):
         return True
-    elif token.val[0] in ['"', "'"]:
-        if token.val[0] != token.val[-1]:
+    elif token[0] in ['"', "'"]:
+        if token[0] != token[-1]:
             raise Exception("String ended did not match!")
         return True
     else:
@@ -243,8 +243,8 @@ def is_alphanum(token):
 # the function name, are separated by commas, and end with a right bracket,
 # are also included in this algorithm, though in a different way
 def shunting_yard(tokens):
-    if len(tokens) > 0 and tokens[0].val in openers:
-        tokens = [token('id')] + tokens
+    if len(tokens) > 0 and tokens[0] in openers:
+        tokens = ['id'] + tokens
 
     iq = [x for x in tokens]
     oq = []
@@ -259,27 +259,30 @@ def shunting_yard(tokens):
     # we get first [ 2, [ +, 5, 3 ] ] then [ [ *, 2, [ +, 5, 3 ] ] ]
     def popstack(stack, oq):
         tok = stack.pop()
-        if tok.val in unary:
+        if tok in unary:
             a = oq.pop()
-            oq.append(astnode(tok.val, [a], *tok.metadata))
-        elif tok.val in precedence and tok.val != ',':
+            oq.append(astnode([tok, a]))
+        elif tok in precedence and tok != ',':
             a, b = oq.pop(), oq.pop()
-            oq.append(astnode(tok.val, [b, a], *tok.metadata))
-        elif tok.val in closers:
-            if openers[opener_stack[-1]] != tok.val:
+            oq.append(astnode([tok, b, a]))
+        elif tok in closers:
+            if openers[opener_stack[-1]] != tok:
                 raise Exception('Did not close with same kind as opened with!',
-                                tok.val, 'vs', openers[opener_stack[-1]])
+                                tok, 'vs', openers[opener_stack[-1]])
             opener_stack.pop()
             args = []
-            while not isinstance(oq[-1], token) or oq[-1].val not in openers:
+            while not utils.is_string(oq[-1]) or oq[-1] not in openers:
                 args.insert(0, oq.pop())
             lbrack = oq.pop()
-            if tok.val == ']' and args[0].val != 'id':
-                oq.append(astnode('access', args, *lbrack.metadata))
-            elif tok.val == ']':
-                oq.append(astnode('array_lit', args[1:], *lbrack.metadata))
-            elif tok.val == ')' and len(args) and args[0].val != 'id':
-                oq.append(astnode(args[0].val, args[1:], *args[0].metadata))
+            if tok == ']' and args[0] != 'id':
+                oq.append(astnode(['access'] + args))
+            elif tok == ']':
+                oq.append(astnode(['array_lit'] + args[1:]))
+            elif tok == ')' and len(args) and args[0] != 'id':
+                if utils.is_string(args[0]):
+                    oq.append(astnode(args))
+                else:
+                    oq.append(astnode(args, *args[0].metadata))
             else:
                 oq.append(args[1])
     # The main loop
@@ -288,12 +291,12 @@ def shunting_yard(tokens):
         tok = iq.pop(0)
         if is_alphanum(tok):
             oq.append(tok)
-        elif tok.val in openers:
-            opener_stack.append(tok.val)
+        elif tok in openers:
+            opener_stack.append(tok)
             # Handle cases like 3 * (2 + 5) by using 'id' as a default function
             # name
-            if not is_alphanum(prev) and prev.val not in closers:
-                oq.append(token('id', *prev.metadata))
+            if not is_alphanum(prev) and prev not in closers:
+                oq.append('id')
             # Say the statement is "... f(45...". At the start, we would have f
             # as the last item on the oq. So we move it onto the stack, put the
             # leftparen on the oq, and move f back to the stack, so we have ( f
@@ -303,27 +306,27 @@ def shunting_yard(tokens):
             oq.append(tok)
             oq.append(stack.pop())
             stack.append(tok)
-        elif tok.val in closers:
+        elif tok in closers:
             # eg. f(27, 3 * 5 + 4). First, we finish evaluating all the
             # arithmetic inside the last argument. Then, we run popstack
             # to coalesce all of the function arguments sitting on the
             # oq into a single list
-            while len(stack) and stack[-1].val not in openers:
+            while len(stack) and stack[-1] not in openers:
                 popstack(stack, oq)
             if len(stack):
                 stack.pop()
             stack.append(tok)
             popstack(stack, oq)
-        elif tok.val in precedence:
+        elif tok in precedence:
             # -5 -> 0 - 5
-            if (tok.val in unary_workaround and
-                not (is_alphanum(prev) or prev.val in closers)):
+            if (tok in unary_workaround and
+                not (is_alphanum(prev) or prev in closers)):
 
-                oq.append(token(unary_workaround[tok.val], *tok.metadata))
+                oq.append(unary_workaround[tok])
             # Handle BEDMAS operator precedence
-            prec = precedence[tok.val]
-            while (len(stack) and stack[-1].val in precedence and
-                   stack[-1].val not in unary and precedence[stack[-1].val] < prec):
+            prec = precedence[tok]
+            while (len(stack) and stack[-1] in precedence and
+                   stack[-1] not in unary and precedence[stack[-1]] < prec):
                 popstack(stack, oq)
             stack.append(tok)
     while len(stack):
@@ -339,19 +342,19 @@ def parse_line(ln, fil='main', linenum=0, charnum=0):
     metadata = fil, linenum, charnum + l_offset
     tok = tokenize(ln.strip(), *metadata)
     for i, t in enumerate(tok):
-        if t.val in ['#', '//']:
+        if t in ['#', '//']:
             tok = tok[:i]
             break
-    if tok[-1].val == ':':
+    if tok[-1] == ':':
         tok = tok[:-1]
-    if tok[0].val in bodied:
-        names = bodied[tok[0].val]
+    if tok[0] in bodied:
+        names = bodied[tok[0]]
         if names == 'dont':
-            raise Exception("% not allowed.", tok[0].val)
+            raise Exception("% not allowed.", tok[0])
         args = []
         i, j, k = 1, 1, 1
         while i < len(names):
-            if tok[j].val == names[i]:  # Find the name until which the data is
+            if tok[j] == names[i]:  # Find the name until which the data is
                 args.append(shunting_yard(tok[k:j]))
                 i += 1
                 j += 1
@@ -359,11 +362,11 @@ def parse_line(ln, fil='main', linenum=0, charnum=0):
             j += 1
         if k < len(tok):
             args.append(shunting_yard(tok[k:]))
-        return astnode(tok[0], args, *metadata)
-    elif tok[0].val == 'stop':
+        return astnode([tok[0]] + args, *metadata)
+    elif tok[0] == 'stop':
         assert len(tok) == 1
-        return astnode('stop', [])
-    elif tok[0].val == 'return':
-        return astnode('return', [shunting_yard(tok[1:])])
+        return astnode(['stop'])
+    elif tok[0] == 'return':
+        return astnode(['return', shunting_yard(tok[1:])])
     else:
         return shunting_yard(tok)

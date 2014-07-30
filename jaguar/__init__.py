@@ -2,6 +2,6 @@
 from rewriter import *
 from utils import *
 from parser import *
-from lllparser import *
+from LLL_parser import LLLParser, LLLWriter
 
-from type_calculator import *
+#from type_calculator import *

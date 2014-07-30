@@ -1,6 +1,5 @@
 
 from io import StringIO
-import utils
 from utils import astnode, is_string
 
 precedence = {
@@ -61,41 +60,41 @@ def serialize_expr(ast, open='(', close=')', between=', ', precscore=-1):
             return open + close
     assert isinstance(ast, astnode)
 
-    if ast[0] in precedence:
-        between = ast[0] if (ast[0] in dont_space_it) else ' ' + ast[0] + ' '
-        open, close = ('', '') if precscore < precedence[ast[0]] else ('(',')')
-        return serialize_expr(ast.args[1:], open, close, between, precedence[ast[0]])
-    elif ast[0] == 'access':  # TODO do this fancier.
+    if ast.fun in precedence:
+        between = ast.fun if (ast.fun in dont_space_it) else ' ' + ast.fun + ' '
+        open, close = ('', '') if precscore < precedence[ast.fun] else ('(',')')
+        return serialize_expr(ast.args[1:], open, close, between, precedence[ast.fun])
+    elif ast.fun == 'access':  # TODO do this fancier.
         return serialize_expr(ast[1]) + '[' + serialize_expr(ast[2]) + ']'
-    elif ast[0] == 'array_lit':
+    elif ast.fun == 'array_lit':
         return serialize_expr(ast.args[1:], '[', ']')
-    elif ast[0] == 'str':
+    elif ast.fun == 'str':
         assert len(ast) == 2
         return '"' + ast[1] + '"'
     else:
-        return ast[0] + serialize_expr(ast.args[1:])
+        return ast.fun + serialize_expr(ast.args[1:])
 
 
 # Does elements that create their own body.
 def serialize_bodied(ast, output, tabs, by_name, bodied=bodied, cases=cases):
-    names = bodied[ast[0]]
+    names = bodied[ast.fun]
     n = len(names)
     if names == 'dont':
         n = 0
     else:
-        if by_name[0] == '_':
+        if by_name.fun == '_':
             by_name = by_name[1:]
         after_tabs(output, tabs, by_name)
         for i in range(n):
             output.write(unicode(names[i] + ' ' + serialize_expr(ast.args[i + 1])))
         output.write(unicode(':\n'))
 
-    if ast[0] in cases:  # Recurses.
+    if ast.fun in cases:  # Recurses.
         i = 1
-        allowed, deeper = cases[ast[0]]
+        allowed, deeper = cases[ast.fun]
         for el in ast.args[n + 1:]:
-            assert el[0] in allowed
-            serialize_bodied(el, output, tabs, el[0],
+            assert el.fun in allowed
+            serialize_bodied(el, output, tabs, el.fun,
                              bodied=allowed, cases=deeper)
     else:
         for el in ast.args[n + 1:]:
@@ -105,7 +104,7 @@ def serialize_bodied(ast, output, tabs, by_name, bodied=bodied, cases=cases):
 def cond_args(args):  # Makes `if` fit the paradigm.
     o = [astnode('_if', args[:2])]
     if len(args) == 3:
-        if isinstance(args[2], astnode) and args[2][0] == 'if':
+        if isinstance(args[2], astnode) and args[2].fun == 'if':
             o += cond_args(args[2].args)
         else:
             o.append(astnode('else', [args[2]]))
@@ -125,12 +124,12 @@ def write_serpent(ast, output='', tabs=0):
         return after_tabs(output, tabs, ast + '\n')
 
     assert isinstance(ast, astnode)
-    if ast[0] in ['outer', 'seq']:
+    if ast.fun in ['outer', 'seq']:
         for el in ast.args[1:]:
             serialize(el, output, tabs)
-    elif ast[0] == 'if':  # Make it fit the paradigm.
+    elif ast.fun == 'if':  # Make it fit the paradigm.
         return serialize(astnode('cond', cond_args(ast.args[1:])), output, tabs)
-    elif ast[0] in bodied:
-        serialize_bodied(ast, output, tabs, ast[0])
+    elif ast.fun in bodied:
+        serialize_bodied(ast, output, tabs, ast.fun)
     else:
         after_tabs(output, tabs, serialize_expr(ast) + '\n')

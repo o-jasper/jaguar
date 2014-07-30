@@ -98,7 +98,7 @@ def serialize_bodied(ast, output, tabs, by_name, bodied=bodied, cases=cases):
                              bodied=allowed, cases=deeper)
     else:
         for el in ast.args[n + 1:]:
-            serialize(el, output, tabs + 1)
+            write_serpent(el, output, tabs + 1)
 
 
 def cond_args(args):  # Makes `if` fit the paradigm.
@@ -114,21 +114,20 @@ def cond_args(args):  # Makes `if` fit the paradigm.
 def write_serpent(ast, output='', tabs=0):
     if isinstance(output, (str,unicode)):
         stream = StringIO(unicode(output))
-        serialize(ast, stream, tabs)
+        write_serpent(ast, stream, tabs)
         stream.seek(0)
         return stream.read()
 
     if is_string(ast):
         return after_tabs(output, tabs, ast + '\n')
-    if isinstance(ast, (str, unicode)):  # NOTE: reckon it shouldnt be mixed.
-        return after_tabs(output, tabs, ast + '\n')
 
-    assert isinstance(ast, astnode)
+    if not isinstance(ast, astnode):
+        raise Exception('what is', ast, type(ast))
     if ast.fun in ['outer', 'seq']:
         for el in ast.args[1:]:
-            serialize(el, output, tabs)
+            write_serpent(el, output, tabs)
     elif ast.fun == 'if':  # Make it fit the paradigm.
-        return serialize(astnode('cond', cond_args(ast.args[1:])), output, tabs)
+        return write_serpent(astnode('cond', cond_args(ast.args[1:])), output, tabs)
     elif ast.fun in bodied:
         serialize_bodied(ast, output, tabs, ast.fun)
     else:

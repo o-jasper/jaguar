@@ -57,6 +57,9 @@ def compile_lll(ast):
         for s in subcodes:
             x += s + ['SWAP', 'MSTORE', 'DUP', 32, 'ADD']
         out = x[:-3] if len(subcodes) > 0 else ['MSIZE']
+    elif ast.fun == 'str':
+        assert len(ast) == 2
+        utils.frombytes(ast[1])
     else:
         o = []
         for subcode in subcodes[::-1]:

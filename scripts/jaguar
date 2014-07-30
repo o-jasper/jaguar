@@ -1,51 +1,87 @@
-#!/usr/bin/python
-import os
-import sys
-import re
-import json
-import serpent
+#!/usr/bin/python2
+
+import sys, io
+
+import argparse
+
+parser = argparse.ArgumentParser(description="""Serpent and LLL conversion upto Ethereum bytecode.""")
+
+from jaguar import LLL_parser, s_expr_parser, utils, write_serpent, compile_lll
+
+parser.add_argument('cmd', help='What to do')
+parser.add_argument('input', help='Input data file. Empty string will use stdin.')
+parser.add_argument('--output', default='',
+                    help='Output file, defaultly prints, auto will make a file based on input file')
+parser.add_argument('--in_type', default='',
+                    help='Overrides input type as inferred from input filename.')
+
+args = parser.parse_args()
+
+def tree_from(inp, fr, lll):
+    if fr == 'lll':
+        return LLL_parser.LLLParser(inp, do_comments=False).parse_lll().args[1]
+    elif fr == 'se':
+        got = parse('\n'.join(inp.readlines()))
+        if lll:
+            return compile_to_lll(got)
+        else:
+            return got
+    else:
+        print('From %s to tree not implemented', fr)
+        return None
+
+
+def easm_from(inp, fr):
+    return compile_lll(tree_from(inp, fr, True))
 
 def main():
-    if len(sys.argv) == 1:
-        print "serpent <command> <arg1> <arg2> ..."
+    inp, c_inp = None, True
+    if args.input == '':
+        inp, c_inp = sys.stdin, False
     else:
-        cmd = sys.argv[2] if sys.argv[1][0] == '-' else sys.argv[1]
-        if sys.argv[1] == '-s':
-            args = re.findall(r'\S\S*', sys.stdin.read()) + sys.argv[3:]
-        elif sys.argv[1] == '-B':
-            args = [sys.stdin.read()] + sys.argv[3:]
-        elif sys.argv[1] == '-b':
-            args = [sys.stdin.read()[:-1]] + sys.argv[3:]  # remove trailing \n
-        elif sys.argv[1] == '-j':
-            args = [json.loads(sys.stdin.read())] + sys.argv[3:]
-        elif sys.argv[1] == '-J':
-            args = json.loads(sys.stdin.read()) + sys.argv[3:]
-        elif sys.argv[1] == '-h':
-            args = [x.decode('hex') for x in sys.argv[3:]]
-        elif sys.argv[1] in ['-hs', '-sh']:
-            args = [sys.stdin.read().strip().decode('hex')] + sys.argv[3:]
-        else:
-            cmd = sys.argv[1]
-            args = sys.argv[2:]
-        try:
-            args[0] = open(args[0]).read()
-        except:
-            pass
-        if cmd in ['rewrite', 'preprocess', 'finalize', 'compile_to_lll',
-                   'compile_lll']:
-            args[0] = serpent.lllparser.parse_lll(args[0])
-        if cmd in ['serialize', 'dereference', 'assemble']:
-            args[0] = args[0].split(' ')
-        o = getattr(serpent, cmd)(*args)
-        if isinstance(o, dict):
-            print json.dumps(o)
-        elif isinstance(o, (list, tuple)):
-            print ' '.join(map(str, o))
-        elif isinstance(o, (serpent.utils.token, serpent.utils.astnode)):
-            print repr(o)
-        else:
-            print o.encode('hex')
+        inp = open(args.input)
+
+    i = args.input.rfind('.')
+
+    cmd = args.cmd.lower()
+    
+    outp, c_outp = None, True
+    if args.output == '':
+        outp, c_outp = sys.stdout, False
+    else:
+        to_file = args.output        
+        if args.out == 'auto':
+            if i != -1:  # Strip extension, if one there.
+                to_file = to_file[i:]
+            to_file += '.' + cmd  # And add correct extension.
+
+        outp = open(to_file)
+
+    def finish():
+        if c_inp:
+            inp.close()
+        if c_outp:
+            outp.close()
 
 
-if __name__ == '__main__':
-    main()
+    fr = args.in_type
+    if fr == '':
+        if i == -1:
+            print('No file extension, and the input type is not explicitly given')
+            return finish()
+        fr = args.input[i + 1:]
+
+    if cmd in ['lll', 'lsp']:  # Produce LLL.
+        LLL_parser.LLLWriter().write_lll_stream(outp, tree_from(inp, fr, True))
+    elif cmd == 'se':  # Produce serpent code.
+        # TODO will have to reconstruct from returning..
+        write_serpent(tree_from(inp, fr, False), outp)
+    elif cmd == 'easm':  # Produce Ethereum assembly(just barely not bytecode)
+        for el in easm_from(inp, fr):
+            outp.write(to_string(el))
+    elif cmd == 'ebc':
+        print(compiler.assemble(easm_from()).encode('hex'))
+        
+    return finish()
+
+main()

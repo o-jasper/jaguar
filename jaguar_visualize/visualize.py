@@ -3,7 +3,7 @@ import io
 
 import pydot
 
-from jaguar import LLLWriter, astnode, is_string
+from jaguar import LLL_parser, utils
 
 themes = {'basic' :
            {'default'      : [('fontname', 'Arial')],
@@ -29,7 +29,7 @@ themes = {'basic' :
 class GraphCode:
     
     def __init__(self, graph=None, fr=None, uniqify=True, theme='basic', attrs=None,
-                 write_fun=None, lllwriter=LLLWriter(), do_comments=True):
+                 write_fun=None, lllwriter=LLL_parser.LLLWriter(), do_comments=True):
         self.graph = graph or pydot.Dot('from-tree', graph_type='digraph')
         self.fr = fr
         self.uniqify = uniqify
@@ -43,9 +43,9 @@ class GraphCode:
         self.i = 0
 
     def cf_expr_str(self, seq):
-        if is_string(seq):
+        if utils.is_string(seq):
             return seq
-        if not isinstance(seq, (list, astnode)) or len(seq) == 0:
+        if not isinstance(seq, (list, utils.astnode)) or len(seq) == 0:
             raise Exception(seq, type(seq))
 
         if 'cut_tops' in self.attrs and seq[0] in self.attrs['cut_tops']:
@@ -64,7 +64,7 @@ class GraphCode:
     # Checks if parts of expressions need more nodes.
     def control_flow_budding(self, ast):
         was_ast, ret_comments = None, []
-        if isinstance(ast, astnode):
+        if isinstance(ast, utils.astnode):
             was_ast = ast
             if self.do_comments:
                 ret_comments = was_ast.comments
@@ -74,7 +74,7 @@ class GraphCode:
             if len(ast) == 0:
                 return '()', [], ret_comments
 
-            if is_string(ast[0]) and str(ast[0].lower()) in self.budders:
+            if utils.is_string(ast[0]) and str(ast[0].lower()) in self.budders:
                 name = ast[0].lower()
                 use_str = self.budders[name]
                 return use_str, [[name] + ast[1:]], ret_comments
@@ -120,7 +120,7 @@ class GraphCode:
         if uniqify is None:
             uniqify = self.uniqify
 
-        if is_string(added):
+        if utils.is_string(added):
             self.i += 1
             node = pydot.Node(str(self.i) if uniqify else added)
             node.obj_dict['attributes'] = self.get_attrs(which)
@@ -153,7 +153,7 @@ class GraphCode:
         
     def cf_add_node(self, added, fr, which, edge_which):
         buds, comments = [], []
-        if isinstance(added, astnode):
+        if isinstance(added, utils.astnode):
             added = added.args
         if isinstance(added, list):
             added, buds, comments = self.control_flow_budding(added)
@@ -176,7 +176,7 @@ class GraphCode:
         while i < len(ast):
     
             el = ast[i]
-            if isinstance(el, astnode):
+            if isinstance(el, utils.astnode):
                 if len(el) == 0:
                     raise Exception('Zero length entry?', i, ast)
     
@@ -225,9 +225,9 @@ class GraphCode:
     def straight(self, tree, fr=None):
         fr = fr or self.fr
 
-        if isinstance(tree, astnode):
+        if isinstance(tree, utils.astnode):
             if len(tree) > 0:
-                if not is_string(tree[0]):
+                if not utils.is_string(tree[0]):
                     raise Exception('First argument not name', tree, type(tree[0]))
                 root = self.sg_add_node(tree[0], fr)
         
@@ -235,7 +235,7 @@ class GraphCode:
                     self.straight(el, root)
             else:
                 self.sg_add_node('()', fr)
-        elif is_string(tree):
+        elif utils.is_string(tree):
             self.sg_add_node(tree, fr)
         else:
             raise Exception(tree, type(tree))

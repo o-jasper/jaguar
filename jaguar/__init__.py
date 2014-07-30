@@ -1,10 +1,10 @@
-#from compiler import *
-from rewriter import *
-from utils import *
 import utils
-import write_serpent
+from write_serpent import write_serpent
 
 from parser import *
-from LLL_parser import LLLParser, LLLWriter
+import LLL_parser, s_expr_parser
+
+from rewriter import *
+from compiler import *
 
 #from type_calculator import *

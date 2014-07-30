@@ -9,22 +9,22 @@ cf: cf_png
 
 VISUALIZE=../../scripts/jaguar_visualize
 
-sg/sg_%.png: %.lsp ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
+sg/sg_%.png: %.lll ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg --uniqify no
 
-sg/sg_uniq_%.png: %.lsp ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
+sg/sg_uniq_%.png: %.lll ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg
 
-cf/cf_%.png: %.lsp ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
+cf/cf_%.png: %.lll ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --theme cut_corners
 
-sg/sg_%.svg: %.lsp ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
+sg/sg_%.svg: %.lll ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg --uniqify no
 
-sg/sg_uniq_%.svg: %.lsp ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
+sg/sg_uniq_%.svg: %.lll ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg
 
-cf/cf_%.svg: %.lsp ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
+cf/cf_%.svg: %.lll ../../jaguar_visualize/visualize.py ../../jaguar_visualize/__init__.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@
 
 png: sg_png cf_png

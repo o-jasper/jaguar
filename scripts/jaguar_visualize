@@ -1,8 +1,5 @@
 #!/usr/bin/python2
-
-import os.path
-import sys
-import io
+import sys, io
 
 import argparse
 
@@ -31,15 +28,15 @@ args = parser.parse_args()
 import pydot
 
 from jaguar_visualize import GraphCode
-from jaguar import LLLParser, LLLWriter, utils, write_serpent
+from jaguar import LLL_parser, utils, write_serpent
 
 
 def _write_fun(stream, ast):
     internal = io.StringIO()
     if args.text =='serpent':
-        write_serpent.write_serpent(utils.astify(ast), internal)
+        write_serpent(utils.astify(ast), internal)
     else:
-        LLLWriter().write_lll_stream(internal, ast)
+        LLL_parser.LLLWriter().write_lll_stream(internal, ast)
     internal.seek(0)
     string = internal.read()
     if args.symbols == 'yes':
@@ -61,7 +58,7 @@ def graph_file(which, fr, to, prog='dot', format=None, text='serpent'):
                    do_comments=do_comments)
 
     stream = open(fr)
-    tree = LLLParser(stream, do_comments=do_comments).parse_lll()
+    tree = LLL_parser.LLLParser(stream, do_comments=do_comments).parse_lll()
     stream.close()
 
     if which in ['sg']:

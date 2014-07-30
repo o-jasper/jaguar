@@ -3,7 +3,7 @@
 import random
 
 
-from jaguar import parser, rewriter, compiler, LLLParser, utils
+from jaguar import parser, rewriter, compiler, LLL_parser, utils
 
 
 def bijection_test_LLLParser(ast2):
@@ -17,7 +17,7 @@ def bijection_test_LLLParser(ast2):
         text2 = text2[:i] + ';blablabla\n' + text2[i+1:]
     print(text2)
 
-    ast3  = LLLParser(text2, do_comments=False).parse_lll()
+    ast3  = LLL_parser.LLLParser(text2, do_comments=False).parse_lll()
     if utils.deastify(ast3[1]) != utils.deastify(ast2):
         print("BUG: Parsing output again gave different result!")
         print(ast2)

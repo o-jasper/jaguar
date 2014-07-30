@@ -5,7 +5,7 @@ import utils
 
 from opcodes import opcodes, reverse_opcodes
 
-from rewriter import compile_to_lll
+import rewriter
 
 
 label_counter = [0]
@@ -22,10 +22,6 @@ def compile_lll(ast):
     # Literals
     if not isinstance(ast, utils.astnode):
         return [utils.numberize(ast)]
-
-    if ast.fun == 'str':
-        assert len(ast) == 2
-        return [utils.frombytes(ast[1])]
 
 
     subcodes = map(compile_lll, ast.args[1:])
@@ -153,7 +149,7 @@ def assemble(source):
 
 
 def compile(source):
-    return assemble(compile_lll(compile_to_lll(parse(source))))
+    return assemble(compile_lll(rewriter.rewrite_to_lll(parse(source))))
 
 
 def biject(source, byte):

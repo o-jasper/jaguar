@@ -4,58 +4,45 @@ import sys, io
 
 import argparse
 
-parser = argparse.ArgumentParser(description="""Serpent and LLL conversion upto Ethereum bytecode.""")
+from jaguar import utils, LLL_parser, s_expr_parser, parser, write_serpent, rewriter, compiler
 
-from jaguar import LLL_parser, s_expr_parser, utils, write_serpent, compiler
+def get_args():
+    parser = argparse.ArgumentParser(description="""Serpent and LLL conversion upto Ethereum bytecode.""")
 
-parser.add_argument('cmd', help='What to do')
-parser.add_argument('input', help='Input data file. Empty string will use stdin.')
-parser.add_argument('--output', default='',
-                    help='Output file, defaultly prints, auto will make a file based on input file')
-parser.add_argument('--in_type', default='',
-                    help='Overrides input type as inferred from input filename.')
+    parser.add_argument('input', help='Input data file, extension used for type. Just extension uses stdin.')
+    parser.add_argument('output', help='Output, extension specifies type, just extension is stdin.')
+    parser.add_argument('--in_type', default=None,
+                        help='Overrides input type.')
+    parser.add_argument('--out_type', default=None,
+                        help='Overrides input type.')    
+    return parser.parse_args()
 
-args = parser.parse_args()
+args = get_args()
 
-def tree_from(inp, fr, lll):
+def tree_from(inp, fr):
     if fr == 'lll':
         return LLL_parser.LLLParser(inp, do_comments=False).parse_lll().args[1]
     elif fr == 'se':
-        got = parse('\n'.join(inp.readlines()))
-        if lll:
-            return compiler.compile_to_lll(got)
-        else:
-            return got
+        got = rewriter.rewrite(parser.parse('\n'.join(inp.readlines())))
     else:
         print('From %s to tree not implemented', fr)
         return None
 
 
 def easm_from(inp, fr):
-    return compiler.compile_lll(tree_from(inp, fr, True))
+    return compiler.compile_lll(rewriter.rewrite(tree_from(inp, fr)))
+
+def figure_type_n_stream(override, maybefile, default_stream):
+    i = maybefile.rfind('.')
+    if i == -1:
+        return default_stream, False, (override or maybefile)
+    else:
+        return open(maybefile), True, (override or maybefile[i+1:])
 
 def main():
-    inp, c_inp = None, True
-    if args.input == '':
-        inp, c_inp = sys.stdin, False
-    else:
-        inp = open(args.input)
 
-    i = args.input.rfind('.')
-
-    cmd = args.cmd.lower()
-    
-    outp, c_outp = None, True
-    if args.output == '':
-        outp, c_outp = sys.stdout, False
-    else:
-        to_file = args.output        
-        if args.out == 'auto':
-            if i != -1:  # Strip extension, if one there.
-                to_file = to_file[i:]
-            to_file += '.' + cmd  # And add correct extension.
-
-        outp = open(to_file)
+    inp, c_inp, fr = figure_type_n_stream(args.in_type, args.input, sys.stdin)
+    outp, c_outp, to = figure_type_n_stream(args.out_type, args.output, sys.stdout)
 
     def finish():
         if c_inp:
@@ -63,25 +50,23 @@ def main():
         if c_outp:
             outp.close()
 
-
-    fr = args.in_type
-    if fr == '':
-        if i == -1:
-            print('No file extension, and the input type is not explicitly given')
-            return finish()
-        fr = args.input[i + 1:]
-
-    if cmd in ['lll', 'lsp']:  # Produce LLL.
-        LLL_parser.LLLWriter().write_lll_stream(outp, tree_from(inp, fr, True))
-    elif cmd == 'se':  # Produce serpent code.
+    if to == 'lll':  # Produce LLL.
+        LLL_parser.LLLWriter().write_lll_stream(outp, rewriter.rewrite(tree_from(inp, fr)))
+    elif to == 'se':  # Produce serpent code.
         # TODO will have to reconstruct from returning..
-        write_serpent(tree_from(inp, fr, False), outp)
-    elif cmd == 'easm':  # Produce Ethereum assembly(just barely not bytecode)
+        write_serpent(tree_from(inp, fr), outp)
+    elif to == 'expand_lll':
+        tree = tree_from(inp, fr)
+        LLL_parser.LLLWriter().write_lll_stream(outp, rewriter.rewrite(tree))
+    elif to == 'easm':  # Produce Ethereum assembly(just barely not bytecode)
         for el in easm_from(inp, fr):
             outp.write(utils.to_string(el) + ' ')
-    elif cmd == 'ebc':
-        print(compiler.assemble(easm_from(inp, fr)).encode('hex'))
-        
+    elif to == 'ebc':
+        outp.write(utils.to_string(compiler.assemble(easm_from(inp, fr)).encode('hex')))
+    else:
+        print("dont know about output %s" % to)
+
+    outp.write(utils.to_string('\n'))                
     return finish()
 
 main()

@@ -4,7 +4,7 @@ from random import random
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from s_expr_parser import SExprParser#, s_expr_str
+from s_expr_parser import SExprParser
 import utils
 
 def gen_tree(p, n, d):

@@ -56,6 +56,10 @@ def deastify(ast):
 
 
 is_numeric = lambda x: isinstance(x, (int, long))
+def str_is_numeric(x):
+    return x[:2] == '0x' or\
+           (x[:1].isdigit() or x[0] in ['+','-']) and (x[1:].isdigit() or len(x[1:]) == 0)
+
 is_string = lambda x: isinstance(x, (str, unicode))
 
 to_string = unicode

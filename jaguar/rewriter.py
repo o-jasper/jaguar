@@ -1,6 +1,5 @@
 from parser import parse
-import utils
-from utils import astnode
+from utils import astnode, astify, is_string, str_is_numeric, numberize
 
 # All AST rewrite rules go here
 #
@@ -13,209 +12,209 @@ from utils import astnode
 
 preparing_simple_macros = [
     [
-        ['if', '<cond>', '<do>', ['else', '<else>']],
-        ['if', '<cond>', '<do>', '<else>']
+        ['if', '$cond', '$do', ['else', '$else']],
+        ['if', '$cond', '$do', '$else']
     ],
     [
-        ['elif', '<cond>', '<do>'],
-        ['if', '<cond>', '<do>']
+        ['elif', '$cond', '$do'],
+        ['if', '$cond', '$do']
     ],
     [
-        ['elif', '<cond>', '<do>', '<else>'],
-        ['if', '<cond>', '<do>', '<else>']
+        ['elif', '$cond', '$do', '$else'],
+        ['if', '$cond', '$do', '$else']
     ],
     [
-        ['code', '<code>'],
-        '<code>'
+        ['code', '$code'],
+        '$code'
     ]
 ]
 
 simple_macros = [
     [
-        ['access', 'msg.data', '<ind>'],
-        ['CALLDATALOAD', ['MUL', '32', '<ind>']]
+        ['access', 'msg.data', '$ind'],
+        ['CALLDATALOAD', ['MUL', '32', '$ind']]
     ],
     [
-        ['array', '<len>'],
-        ['alloc', ['MUL', '32', '<len>']]
+        ['array', '$len'],
+        ['alloc', ['MUL', '32', '$len']]
     ],
     [
-        ['while', '<cond>', '<do>'],
-        ['until', ['NOT', '<cond>'], '<do>']
+        ['while', '$cond', '$do'],
+        ['until', ['NOT', '$cond'], '$do']
     ],
     [
-        ['while', ['NOT', '<cond>'], '<do>'],
-        ['until', '<cond>', '<do>']
+        ['while', ['NOT', '$cond'], '$do'],
+        ['until', '$cond', '$do']
     ],
     [
-        ['if', ['NOT', '<cond>'], '<do>'],
-        ['unless', '<cond>', '<do>']
+        ['if', ['NOT', '$cond'], '$do'],
+        ['unless', '$cond', '$do']
     ],
     [
-        ['if', '<cond>', '<do>'],
-        ['unless', ['NOT', '<cond>'], '<do>']
+        ['if', '$cond', '$do'],
+        ['unless', ['NOT', '$cond'], '$do']
     ],
     [
-        ['access', 'contract.storage', '<ind>'],
-        ['SLOAD', '<ind>']
+        ['access', 'contract.storage', '$ind'],
+        ['SLOAD', '$ind']
     ],
     [
-        ['access', '<var>', '<ind>'],
-        ['MLOAD', ['ADD', '<var>', ['MUL', '32', '<ind>']]]
+        ['access', '$var', '$ind'],
+        ['MLOAD', ['ADD', '$var', ['MUL', '32', '$ind']]]
     ],
     [
-        ['set', ['access', 'contract.storage', '<ind>'], '<val>'],
-        ['SSTORE', '<ind>', '<val>']
+        ['set', ['access', 'contract.storage', '$ind'], '$val'],
+        ['SSTORE', '$ind', '$val']
     ],
     [
-        ['set', ['access', '<var>', '<ind>'], '<val>'],
-        ['arrset', '<var>', '<ind>', '<val>']
+        ['set', ['access', '$var', '$ind'], '$val'],
+        ['arrset', '$var', '$ind', '$val']
     ],
     [
-        ['arrset', '<var>', '<ind>', '<val>'],
-        ['MSTORE', ['ADD', '<var>', ['MUL', '32', '<ind>']], '<val>']
+        ['arrset', '$var', '$ind', '$val'],
+        ['MSTORE', ['ADD', '$var', ['MUL', '32', '$ind']], '$val']
     ],
     [
-        ['getch', '<var>', '<ind>'],
-        ['MOD', ['MLOAD', ['ADD', '<var>', '<ind>']], '256']
+        ['getch', '$var', '$ind'],
+        ['MOD', ['MLOAD', ['ADD', '$var', '$ind']], '256']
     ],
     [
-        ['setch', '<var>', '<ind>', '<val>'],
-        ['MSTORE8', ['ADD', '<var>', '<ind>'], '<val>']
+        ['setch', '$var', '$ind', '$val'],
+        ['MSTORE8', ['ADD', '$var', '$ind'], '$val']
     ],
     [
-        ['send', '<to>', '<value>'],
-        ['CALL', ['SUB', ['GAS'], '25'], '<to>', '<value>', '0', '0', '0', '0']
+        ['send', '$to', '$value'],
+        ['CALL', ['SUB', ['GAS'], '25'], '$to', '$value', '0', '0', '0', '0']
     ],
     [
-        ['send', '<gas>', '<to>', '<value>'],
-        ['CALL', '<gas>', '<to>', '<value>', '0', '0', '0', '0']
+        ['send', '$gas', '$to', '$value'],
+        ['CALL', '$gas', '$to', '$value', '0', '0', '0', '0']
     ],
     [
-        ['sha3', '<x>'],
-        ['seq', ['MSTORE', '@1', '<x>'], ['SHA3', '@1', '32']]
+        ['sha3', '$x'],
+        ['seq', ['MSTORE', '@1', '$x'], ['SHA3', '@1', '32']]
     ],
     [
-        ['sha3', '<start>', '<len>'],
-        ['SHA3', '<start>', ['MUL', '32', '<len>']]
+        ['sha3', '$start', '$len'],
+        ['SHA3', '$start', ['MUL', '32', '$len']]
     ],
     [
-        ['calldataload', '<start>', '<len>'],
-        ['CALLDATALOAD', '<start>', ['MUL', '32', '<len>']]
+        ['calldataload', '$start', '$len'],
+        ['CALLDATALOAD', '$start', ['MUL', '32', '$len']]
     ],
     [
-        ['id', '<0>'],
-        '<0>'
+        ['id', '$0'],
+        '$0'
     ],
     [
-        ['return', '<x>'],
-        ['seq', ['MSTORE', '@1', '<x>'], ['RETURN', '@1', '32']]
+        ['return', '$x'],
+        ['seq', ['MSTORE', '@1', '$x'], ['RETURN', '@1', '32']]
     ],
     [
-        ['return', '<start>', '<len>'],
-        ['RETURN', '<start>', ['MUL', '32', '<len>']]
+        ['return', '$start', '$len'],
+        ['RETURN', '$start', ['MUL', '32', '$len']]
     ],
     [
-        ['&&', '<x>', '<y>'],
-        ['if', '<x>', '<y>', '0']
+        ['&&', '$x', '$y'],
+        ['if', '$x', '$y', '0']
     ],
     [
-        ['||', '<x>', '<y>'],
-        ['if', '<x>', '<x>', '<y>']
+        ['||', '$x', '$y'],
+        ['if', '$x', '$x', '$y']  # Double x; abstraction leak.
     ],
     [
-        ['>=', '<x>', '<y>'],
-        ['NOT', ['LT', '<x>', '<y>']]
+        ['>=', '$x', '$y'],
+        ['NOT', ['LT', '$x', '$y']]
     ],
     [
-        ['<=', '<x>', '<y>'],
-        ['NOT', ['GT', '<x>', '<y>']]
+        ['<=', '$x', '$y'],
+        ['NOT', ['GT', '$x', '$y']]
     ],
     [
-        ['create', '<endowment>', '<code>'],
+        ['create', '$endowment', '$code'],
         ['seq',
-            ['CREATE', '<endowment>', '@1', ['lll', ['outer', '<code>'], '@1']]]
+            ['CREATE', '$endowment', '@1', ['lll', ['outer', '$code'], '@1']]]
     ],
     [
-        ['msg', '<gas>', '<to>', '<val>', '<dataval>'],
+        ['msg', '$gas', '$to', '$val', '$dataval'],
         ['seq',
-            ['MSTORE', '@1', '<dataval>'],
-            ['CALL', '<gas>', '<to>', '<val>', '@1', '32', '@2', '32'],
+            ['MSTORE', '@1', '$dataval'],
+            ['CALL', '$gas', '$to', '$val', '@1', '32', '@2', '32'],
             ['MLOAD', '@2']]
     ],
     [
-        ['call', '<f>', '<dataval>'],
-        ['msg', ['SUB', ['GAS'], '45'], '<f>', '0', '<dataval>']
+        ['call', '$f', '$dataval'],
+        ['msg', ['SUB', ['GAS'], '45'], '$f', '0', '$dataval']
     ],
     [
-        ['msg', '<gas>', '<to>', '<val>', '<inp>', '<inpsz>'],
+        ['msg', '$gas', '$to', '$val', '$inp', '$inpsz'],
         ['seq',
-            ['CALL', '<gas>', '<to>', '<val>', '<inp>',
-                ['MUL', '32', '<inpsz>'], '@1', '32'],
+            ['CALL', '$gas', '$to', '$val', '$inp',
+                ['MUL', '32', '$inpsz'], '@1', '32'],
             ['MLOAD', '@1']]
     ],
     [
-        ['call', '<f>', '<inp>', '<inpsz>'],
+        ['call', '$f', '$inp', '$inpsz'],
         ['seq',
-            ['set', '@1', '<inpsz>'],
+            ['set', '@1', '$inpsz'],
             ['msg',
                 ['SUB', ['GAS'], ['ADD', '25', ['MLOAD', '@1']]],
-                '<f>', '0', '<inp>', ['MLOAD', '@1']]]
+                '$f', '0', '$inp', ['MLOAD', '@1']]]
     ],
     [
-        ['msg', '<gas>', '<to>', '<val>', '<inp>', '<inpsz>', '<outsz>'],
+        ['msg', '$gas', '$to', '$val', '$inp', '$inpsz', '$outsz'],
         ['seq',
-            ['MSTORE', '@1', ['MUL', '32', '<outsz>']],
+            ['MSTORE', '@1', ['MUL', '32', '$outsz']],
             ['MSTORE', '@2', ['alloc', ['MLOAD', '@1']]],
             ['POP',
-                ['CALL', '<gas>', '<to>', '<val>',
-                 '<inp>', ['MUL', '32', '<inpsz>'], '@2', ['MLOAD', '@1']]],
+                ['CALL', '$gas', '$to', '$val',
+                 '$inp', ['MUL', '32', '$inpsz'], '@2', ['MLOAD', '@1']]],
             ['MLOAD', '@2']]
     ],
     [
-        ['outer', ['init', '<init>', '<code>']],
+        ['outer', ['init', '$init', '$code']],
         ['seq',
-            '<init>',
-            ['RETURN', '0', ['lll', '<code>', '0']]]
+            '$init',
+            ['RETURN', '0', ['lll', '$code', '0']]]
     ],
     [
-        ['outer', ['init', '<shared>', '<init>', '<code>']],
+        ['outer', ['init', '$shared', '$init', '$code']],
         ['seq',
-            '<shared>',
-            '<init>',
-            ['RETURN', '0', ['lll', ['seq', '<shared>', '<code>'], '0']]]
+            '$shared',
+            '$init',
+            ['RETURN', '0', ['lll', ['seq', '$shared', '$code'], '0']]]
     ],
     [
-        ['outer', '<code>'],
-        ['outer', ['init', ['seq'], '<code>']]
+        ['outer', '$code'],
+        ['outer', ['init', ['seq'], '$code']]
     ],
     [
-        ['seq', ['seq'], '<x>'],
-        '<x>'
+        ['seq', ['seq'], '$x'],
+        '$x'
     ]
 ]
 
 constants = [
-    ['msg.datasize', ['DIV', ['CALLDATASIZE'], '32']],
-    ['msg.sender', ['CALLER']],
-    ['msg.value', ['CALLVALUE']],
-    ['tx.gasprice', ['GASPRICE']],
-    ['tx.origin', ['ORIGIN']],
-    ['tx.gas', ['GAS']],
+    ['msg.datasize',     ['DIV', ['CALLDATASIZE'], '32']],
+    ['msg.sender',       ['CALLER']],
+    ['msg.value',        ['CALLVALUE']],
+    ['tx.gasprice',      ['GASPRICE']],
+    ['tx.origin',        ['ORIGIN']],
+    ['tx.gas',           ['GAS']],
     ['contract.balance', ['BALANCE']],
     ['contract.address', ['ADDRESS']],
-    ['block.prevhash', ['PREVHASH']],
-    ['block.coinbase', ['COINBASE']],
-    ['block.timestamp', ['TIMESTAMP']],
-    ['block.number', ['NUMBER']],
+    ['block.prevhash',   ['PREVHASH']],
+    ['block.coinbase',   ['COINBASE']],
+    ['block.timestamp',  ['TIMESTAMP']],
+    ['block.number',     ['NUMBER']],
     ['block.difficulty', ['DIFFICULTY']],
-    ['block.gaslimit', ['GASLIMIT']],
-    ['stop', ['STOP']],
+    ['block.gaslimit',   ['GASLIMIT']],
+    ['stop',             ['STOP']],
 ]
 
 
 def _getvar(ast):
-    if utils.is_string(ast) and not utils.is_numeric(ast) and \
+    if is_string(ast) and not ast[0] == '"' and not str_is_numeric(ast) and \
        ast not in map(lambda x: x[0], constants) and \
        ast[0] != '_':
         inner = '__' + ast
@@ -277,6 +276,11 @@ def _import(ast):
         x = preprocess(parse(open(filename).read(), ast[1]))
         return astnode(['code', x], *ast.metadata)
 
+def _str(ast):
+    if isinstance(ast, astnode) and ast.fun == 'str':
+        assert len(ast) == 2
+        return '"' + ast[1] + '"'
+
 
 def _inset(ast):
     if isinstance(ast, astnode) and ast.fun == 'inset':
@@ -291,14 +295,14 @@ label_counter = [0]
 
 # Apply all rewrite rules
 def rewrite(ast):
-    while 1:
+    while True:
         ast2 = None
         for macro in macros:
             ast2 = macro(ast2 or ast) or ast2
-        if not ast2:
+        if not ast2:  # None of them changed anything.
             break
         ast = ast2
-    if utils.is_string(ast):
+    if is_string(ast):
         return ast
     else:
         return astnode([ast.fun] + map(rewrite, ast.args[1:]), *ast.metadata)
@@ -316,8 +320,8 @@ def analyze_and_varify_ast(ast, data):
         else:
             argz = map(lambda x: analyze_and_varify_ast(x, data), ast.args[1:])
         return astnode([ast.fun] + argz, *ast.metadata)
-    elif utils.is_numeric(ast):
-        return str(utils.numberize(ast))
+    elif str_is_numeric(ast):
+        return str(numberize(ast))
     else:
         if ast not in data['varhash']:
             data['varhash'][ast] = str(len(data['varhash']) * 32)
@@ -347,14 +351,14 @@ def preprocess(ast):
     return astnode(['outer', ast], *ast.metadata)
 
 
-def compile_to_lll(ast):
-    if utils.is_string(ast):
+def rewrite_to_lll(ast):  # TODO some macroexpansions are theirs..
+    if is_string(ast):
         ast = parse(ast)
     return finalize(rewrite(preprocess(ast)))
 
 
 def analyze(ast):
-    if utils.is_string(ast):
+    if is_string(ast):
         ast = parse(ast)
     ast = rewrite(preprocess(ast))
     data = {"varhash": {}, "inner": []}
@@ -366,12 +370,12 @@ def analyze(ast):
 def get_macro_vars(pattern, ast):
     d = {}
     if not isinstance(pattern, list):
-        if pattern[0] == '<' and pattern[-1] == '>':
-            d[pattern[1:-1]] = ast
+        if pattern[0] == '$':
+            d[pattern[1:]] = ast
         elif isinstance(ast, astnode) or pattern != ast:
             return None
     else:
-        if not isinstance(ast, astnode) or len(ast) - 1 != len(pattern[1:]):
+        if not isinstance(ast, astnode) or len(ast) != len(pattern):
             return None
         for mitem, astitem in zip(pattern, ast.args):
             subdict = get_macro_vars(mitem, astitem)
@@ -385,8 +389,8 @@ def get_macro_vars(pattern, ast):
 # dict, ast -> ast
 def set_macro_vars(subst, pattern, anchor, lc):
     if isinstance(pattern, (str, unicode)):
-        if pattern[0] == '<' and pattern[-1] == '>':
-            return subst[pattern[1:-1]]
+        if pattern[0] == '$':
+            return subst[pattern[1:]]
         elif pattern[0] == '@':
             return '_temp_'+str(lc)+'_'+pattern[1:]
         else:
@@ -395,7 +399,7 @@ def set_macro_vars(subst, pattern, anchor, lc):
         f = lambda ast: set_macro_vars(subst, ast, anchor, lc)
         args = [pattern[0]] + map(f, pattern[1:])
         if isinstance(pattern, list):
-            if utils.is_string(anchor):
+            if is_string(anchor):
                 return astnode(args)
             else:
                 return astnode(args, *anchor.metadata)
@@ -430,10 +434,10 @@ def math_macro(args):
         if isinstance(ast, astnode) and ast.fun == head:
             funargs = []
             for a in ast.args[1:]:
-                if isinstance(a, astnode) or not utils.is_numeric(a):
+                if isinstance(a, astnode) or not str_is_numeric(a):
                     return
                 else:
-                    funargs.append(utils.numberize(a))
+                    funargs.append(numberize(a))
             return str(transform(*funargs))
     return app
 
@@ -464,11 +468,11 @@ def _case(ast):
                 if len(a) == 4:
                     here.append(c(a[3]))
                 return here
-        return utils.astify(c(ast[3]))
+        return astify(c(ast[3]))
 
 macros = \
     map(simple_macro, preparing_simple_macros) + \
     map(simple_macro, simple_macros + constants) + \
-    [_getvar, _setvar, _case, _import, _inset] + \
+    [_getvar, _setvar, _case, _import, _inset, _str] + \
     map(synonym_macro, synonyms) + \
     map(math_macro, mathfuncs)

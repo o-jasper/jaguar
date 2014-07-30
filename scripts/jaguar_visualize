@@ -4,8 +4,6 @@ import os.path
 import sys
 import io
 
-fromdir = os.path.dirname(__file__)
-
 import argparse
 
 parser = argparse.ArgumentParser(description="""Visualize code with graphviz.

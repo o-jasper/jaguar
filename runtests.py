@@ -59,7 +59,7 @@ def test_on_file(file):
         if i >= len(t):
             break
 
-
+# TODO point the commandline tool at it from the makefile instead.
 for f in ['tests.txt',
           'examples/mul2.se', 'examples/namecoin.se',
           # Currently dont work, latter is fixed by #33

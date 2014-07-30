@@ -12,7 +12,7 @@ def assert_len(ast, length, say="wrong_length, should be"):
 def lll_to_s_expr(ast):
 
     if isinstance(ast, astnode):
-        ms = {'@':'mload', '@@':'sload'}
+        ms = {'@':'mload', '@@':'sload'}  # These first
         i, intermediate = 0, []
         while i < len(ast):
             el = ast[i]
@@ -34,7 +34,7 @@ def lll_to_s_expr(ast):
                 intermediate.append(el)
                 i += 1
         i, ret = 0, []
-        while i < len(intermediate):
+        while i < len(intermediate):  # Then setting array stuff.
             el = intermediate[i]
             enter = el
             if isinstance(el, astnode) and len(el.args)>0 and el[0] == 'aref':
@@ -62,7 +62,7 @@ def lll_to_s_expr(ast):
         ret_node = astnode(ret, *ast.metadata)
         ret_node.comments = ast.comments
         return ret_node
-    elif is_string(ast):
+    elif is_string(ast):  # These should be taken out by now.
         assert ast not in ['@', '@@']
         return ast
     else:

@@ -19,21 +19,23 @@ def mksymbol():
 # Compile LLL to EVM
 def compile_lll(ast):
     symb = mksymbol()
-    tokenify2 = lambda x: utils.tokenify(x, *ast.metadata)
     # Literals
     if not isinstance(ast, utils.astnode):
         return [utils.numberize(ast)]
-    subcodes = map(compile_lll, ast.args)
+    subcodes = map(compile_lll, ast.args[1:])
+
     # Seq
     if ast.fun == 'seq':
         o = []
         for subcode in subcodes:
             o.extend(subcode)
         return o
-    elif ast.fun == 'unless' and len(ast.args) == 2:
+    elif ast.fun == 'unless':
+        assert len(ast.args) == 3
         out = subcodes[0] + ['$endif'+symb, 'JUMPI'] + \
-            subcodes[1] + ['~endif'+symb]
-    elif ast.fun == 'if' and len(ast.args) == 3:
+              subcodes[1] + ['~endif'+symb]
+    elif ast.fun == 'if':
+        assert len(ast.args) == 4
         out = subcodes[0] + ['NOT', '$else'+symb, 'JUMPI'] + \
             subcodes[1] + ['$endif'+symb, 'JUMP', '~else'+symb] + \
             subcodes[2] + ['~endif'+symb]
@@ -60,12 +62,11 @@ def compile_lll(ast):
         for subcode in subcodes[::-1]:
             o.extend(subcode)
         out = o + [ast.fun]
-    return map(tokenify2, out)
+    return out
 
 
 # Dereference labels
 def dereference(c):
-    c = map(utils.tokenify, c)
     label_length = utils.log256(len(c)*4)
     iq = [x for x in c]
     mq = []
@@ -106,7 +107,7 @@ def dereference(c):
                 oqplus.extend(utils.tobytearr(value, label_length))
         else:
             oqplus.append(m)
-        oq.extend(map(lambda x: utils.tokenify(x, *m.metadata), oqplus))
+        oq.extend(oqplus)
     return oq
 
 
@@ -121,8 +122,8 @@ def serialize(source):
         elif re.match('^[0-9]*$', arg):
             return int(arg)
         else:
-            raise Exception("Cannot serialize: " + str(arg))
-    return ''.join(map(chr, map(numberize, map(utils.detokenify, source))))
+            raise Exception("Cannot serialize: " + str(arg), source)
+    return ''.join(map(chr, map(numberize, source)))
 
 
 def deserialize(source):

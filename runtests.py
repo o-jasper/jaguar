@@ -18,7 +18,7 @@ def bijection_test_LLLParser(ast2):
     print(text2)
 
     ast3  = LLLParser(text2, do_comments=False).parse_lll()
-    if utils.deastify(ast3) != utils.deastify(ast2):
+    if utils.deastify(ast3[1]) != utils.deastify(ast2):
         print("BUG: Parsing output again gave different result!")
         print(ast2)
         print(ast3)
@@ -35,13 +35,13 @@ def test_on_text(text):
     print ""
     bijection_test_LLLParser(ast2)
 
-#    print "Analysis: ", rewriter.analyze(ast)
-#    print ""
-#    aevm = compiler.compile_lll(ast2)
-#    print "AEVM:", ' '.join([str(x) for x in aevm])
-#    print ""
-#    code = compiler.assemble(aevm)
-#    print "Output:", code.encode('hex')
+    print "Analysis: ", rewriter.analyze(ast)
+    print ""
+    aevm = compiler.compile_lll(ast2)
+    print "AEVM:", ' '.join([str(x) for x in aevm])
+    print ""
+    code = compiler.assemble(aevm)
+    print "Output:", code.encode('hex')
 
 
 def test_on_file(file):

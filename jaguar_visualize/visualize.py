@@ -1,12 +1,9 @@
 
-import pydot
-from random import random
-
 import io
-from python_2_3_compat import to_str, is_str
 
-from LLL_parser import LLLWriter
-from utils import astnode, is_string
+import pydot
+
+from jaguar import LLLWriter, astnode, is_string
 
 themes = {'basic' :
            {'default'      : [('fontname', 'Arial')],
@@ -58,7 +55,7 @@ class GraphCode:
         stream = io.StringIO()
         self.write_fun(stream, seq[0])
         for el in seq[1:]:  # Here for the newlines.
-            stream.write(to_str('\n'))
+            stream.write(unicode('\n'))
             self.write_fun(stream, el)
 
         stream.seek(0)  # Dont forget to read back!
@@ -77,7 +74,7 @@ class GraphCode:
             if len(ast) == 0:
                 return '()', [], ret_comments
 
-            if is_str(ast[0]) and str(ast[0].lower()) in self.budders:
+            if is_string(ast[0]) and str(ast[0].lower()) in self.budders:
                 name = ast[0].lower()
                 use_str = self.budders[name]
                 return use_str, [[name] + ast[1:]], ret_comments
@@ -123,7 +120,7 @@ class GraphCode:
         if uniqify is None:
             uniqify = self.uniqify
 
-        if is_str(added):
+        if is_string(added):
             self.i += 1
             node = pydot.Node(str(self.i) if uniqify else added)
             node.obj_dict['attributes'] = self.get_attrs(which)

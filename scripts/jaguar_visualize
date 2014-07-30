@@ -5,8 +5,6 @@ import sys
 import io
 
 fromdir = os.path.dirname(__file__)
-sys.path.append(os.path.join(fromdir, '..'))
-sys.path.append(os.path.join(fromdir, '../../jaguar/'))
 
 import argparse
 
@@ -34,10 +32,8 @@ args = parser.parse_args()
 
 import pydot
 
-from visualize import GraphCode
-from LLL_parser import LLLParser, LLLWriter
-
-import utils, write_serpent
+from jaguar_visualize import GraphCode
+from jaguar import LLLParser, LLLWriter, utils, write_serpent
 
 
 def _write_fun(stream, ast):

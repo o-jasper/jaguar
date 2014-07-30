@@ -1,8 +1,7 @@
 
 import io
-from python_2_3_compat import to_str, is_str
 from s_expr_parser import SExprParser, BeginEnd, Incorrect
-from utils import astnode, is_string
+from utils import astnode, is_string, to_string
 
 def assert_len(ast, length, say="wrong_length, should be"):
     if len(ast) != length:
@@ -74,7 +73,7 @@ class LLLParser(SExprParser):
     # Just do SExprParser().parse(), dont neccesarily need a variable.
     def __init__(self, stream, line_i = 0, fil='', do_comments=True):
         if isinstance(stream, (str, unicode)):
-            stream = io.StringIO(to_str(stream))
+            stream = io.StringIO(to_string(stream))
 
         self.stream = stream
         self.line_i = line_i
@@ -112,7 +111,7 @@ class LLLParser(SExprParser):
         return lll_to_s_expr(self.parse(initial))
 
 def write_str(stream, what):
-    stream.write(to_str(what))
+    stream.write(to_string(what))
 
 class LLLWriter:
 
@@ -178,7 +177,7 @@ class LLLWriter:
     # Main 'portal' function.
     def write_lll_stream(self, stream, ast):
         if type(ast) is list:
-            if is_str(ast[0]):
+            if is_string(ast[0]):
                 name = ast[0].lower()
                 if name in self.config:  # It is a special statement.
                     c = self.config[name]

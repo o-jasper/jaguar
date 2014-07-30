@@ -7,24 +7,24 @@ clean:
 sg: sg_png
 cf: cf_png
 
-VISUALIZE=../bin/code-visualize.py
+VISUALIZE=../../scripts/jaguar_visualize
 
-sg/sg_%.png: %.lsp ../visualize.py ../bin/code-visualize.py
+sg/sg_%.png: %.lsp ../visualize.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg --uniqify no
 
-sg/sg_uniq_%.png: %.lsp ../visualize.py ../bin/code-visualize.py
+sg/sg_uniq_%.png: %.lsp ../visualize.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg
 
-cf/cf_%.png: %.lsp ../visualize.py ../bin/code-visualize.py
+cf/cf_%.png: %.lsp ../visualize.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --theme cut_corners
 
-sg/sg_%.svg: %.lsp ../visualize.py ../bin/code-visualize.py
+sg/sg_%.svg: %.lsp ../visualize.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg --uniqify no
 
-sg/sg_uniq_%.svg: %.lsp ../visualize.py ../bin/code-visualize.py
+sg/sg_uniq_%.svg: %.lsp ../visualize.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@ --which sg
 
-cf/cf_%.svg: %.lsp ../visualize.py ../bin/code-visualize.py
+cf/cf_%.svg: %.lsp ../visualize.py ../../scripts/jaguar_visualize
 	$(VISUALIZE) $< $@
 
 png: sg_png cf_png

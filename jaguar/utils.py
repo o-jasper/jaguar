@@ -1,4 +1,4 @@
-import re
+import re, sys
 
 
 class astnode():
@@ -58,6 +58,7 @@ def deastify(ast):
 is_numeric = lambda x: isinstance(x, (int, long))
 is_string = lambda x: isinstance(x, (str, unicode))
 
+to_string = unicode
 
 # A set of methods for detecting raw values (numbers and strings) and
 # converting them to integers

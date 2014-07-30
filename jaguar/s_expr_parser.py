@@ -1,9 +1,7 @@
 # S-expression input of exactly the same as serpent.
 
 import io
-import utils
-
-from python_2_3_compat import to_str, is_str
+from utils import astnode, to_string
 
 
 class BeginEnd:
@@ -52,7 +50,7 @@ class SExprParser:
                  earliest_macro={}, fil='',
                  handle = lambda a,b: str(a).split()):
         if isinstance(stream, (str, unicode)):
-            stream = io.StringIO(to_str(stream))
+            stream = io.StringIO(to_string(stream))
 
         self.stream = stream
         self.line_i = line_i
@@ -98,7 +96,7 @@ class SExprParser:
         prep = []
         if name != 'call':
             prep = [name]
-        return utils.astnode(prep + args, self.fil, self.line_i, comments=comments)
+        return astnode(prep + args, self.fil, self.line_i, comments=comments)
 
     # Parses just looking at the end. For instance for "strings"
     # TODO may want to have it parse, looking

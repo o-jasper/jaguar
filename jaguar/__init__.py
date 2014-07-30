@@ -5,6 +5,6 @@ from parser import *
 import LLL_parser, s_expr_parser
 
 from rewriter import *
-from compiler import *
+import compiler
 
 #from type_calculator import *

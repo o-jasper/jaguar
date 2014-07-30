@@ -22,6 +22,12 @@ def compile_lll(ast):
     # Literals
     if not isinstance(ast, utils.astnode):
         return [utils.numberize(ast)]
+
+    if ast.fun == 'str':
+        assert len(ast) == 2
+        return [utils.frombytes(ast[1])]
+
+
     subcodes = map(compile_lll, ast.args[1:])
 
     # Seq
@@ -32,41 +38,36 @@ def compile_lll(ast):
         return o
     elif ast.fun == 'unless':
         assert len(ast.args) == 3
-        out = subcodes[0] + ['$endif'+symb, 'JUMPI'] + \
-              subcodes[1] + ['~endif'+symb]
+        return subcodes[0] + ['$endif'+symb, 'JUMPI'] + \
+               subcodes[1] + ['~endif'+symb]
     elif ast.fun == 'if':
         assert len(ast.args) == 4
-        out = subcodes[0] + ['NOT', '$else'+symb, 'JUMPI'] + \
-            subcodes[1] + ['$endif'+symb, 'JUMP', '~else'+symb] + \
-            subcodes[2] + ['~endif'+symb]
+        return subcodes[0] + ['NOT', '$else'+symb, 'JUMPI'] + \
+               subcodes[1] + ['$endif'+symb, 'JUMP', '~else'+symb] + \
+               subcodes[2] + ['~endif'+symb]
     elif ast.fun == 'until':
-        out = ['~beg'+symb] + subcodes[0] + ['$end'+symb, 'JUMPI'] + \
-            subcodes[1] + ['$beg'+symb, 'JUMP', '~end'+symb]
+        return ['~beg'+symb] + subcodes[0] + ['$end'+symb, 'JUMPI'] + \
+               subcodes[1] + ['$beg'+symb, 'JUMP', '~end'+symb]
     elif ast.fun == 'lll':
         LEN = '$begincode'+symb+'.endcode'+symb
         STARTSYMB, STARTIND = '~begincode'+symb, '$begincode'+symb
         ENDSYMB, ENDIND = '~endcode'+symb, '$endcode'+symb
-        out = [LEN, 'DUP'] + subcodes[1] + [STARTIND, 'CODECOPY'] + \
-            [ENDIND, 'JUMP', STARTSYMB, '#CODE_BEGIN'] + subcodes[0] + \
-            ['#CODE_END', ENDSYMB]
+        return [LEN, 'DUP'] + subcodes[1] + [STARTIND, 'CODECOPY'] + \
+               [ENDIND, 'JUMP', STARTSYMB, '#CODE_BEGIN'] + subcodes[0] + \
+               ['#CODE_END', ENDSYMB]
     elif ast.fun == 'alloc':
-        out = subcodes[0] + ['MSIZE', 'SWAP', 'MSIZE'] + \
-            ['ADD', 1, 'SWAP', 'SUB', 0, 'SWAP', 'MSTORE8']
+        return subcodes[0] + ['MSIZE', 'SWAP', 'MSIZE'] + \
+               ['ADD', 1, 'SWAP', 'SUB', 0, 'SWAP', 'MSTORE8']
     elif ast.fun == 'array_lit':
         x = ['MSIZE', 'DUP']
         for s in subcodes:
             x += s + ['SWAP', 'MSTORE', 'DUP', 32, 'ADD']
-        out = x[:-3] if len(subcodes) > 0 else ['MSIZE']
-    elif ast.fun == 'str':
-        assert len(ast) == 2
-        utils.frombytes(ast[1])
+        return x[:-3] if len(subcodes) > 0 else ['MSIZE']
     else:
         o = []
         for subcode in subcodes[::-1]:
             o.extend(subcode)
-        out = o + [ast.fun]
-    return out
-
+        return o + [ast.fun]
 
 # Dereference labels
 def dereference(c):
@@ -118,8 +119,8 @@ def serialize(source):
     def numberize(arg):
         if utils.is_numeric(arg):
             return arg
-        elif arg in reverse_opcodes:
-            return reverse_opcodes[arg]
+        elif arg.upper() in reverse_opcodes:
+            return reverse_opcodes[arg.upper()]
         elif arg[:4] == 'PUSH':
             return 95 + int(arg[4:])
         elif re.match('^[0-9]*$', arg):

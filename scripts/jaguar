@@ -6,7 +6,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description="""Serpent and LLL conversion upto Ethereum bytecode.""")
 
-from jaguar import LLL_parser, s_expr_parser, utils, write_serpent, compile_lll
+from jaguar import LLL_parser, s_expr_parser, utils, write_serpent, compiler
 
 parser.add_argument('cmd', help='What to do')
 parser.add_argument('input', help='Input data file. Empty string will use stdin.')
@@ -23,7 +23,7 @@ def tree_from(inp, fr, lll):
     elif fr == 'se':
         got = parse('\n'.join(inp.readlines()))
         if lll:
-            return compile_to_lll(got)
+            return compiler.compile_to_lll(got)
         else:
             return got
     else:
@@ -32,7 +32,7 @@ def tree_from(inp, fr, lll):
 
 
 def easm_from(inp, fr):
-    return compile_lll(tree_from(inp, fr, True))
+    return compiler.compile_lll(tree_from(inp, fr, True))
 
 def main():
     inp, c_inp = None, True
@@ -78,9 +78,9 @@ def main():
         write_serpent(tree_from(inp, fr, False), outp)
     elif cmd == 'easm':  # Produce Ethereum assembly(just barely not bytecode)
         for el in easm_from(inp, fr):
-            outp.write(to_string(el))
+            outp.write(utils.to_string(el) + ' ')
     elif cmd == 'ebc':
-        print(compiler.assemble(easm_from()).encode('hex'))
+        print(compiler.assemble(easm_from(inp, fr)).encode('hex'))
         
     return finish()
 

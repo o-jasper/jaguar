@@ -9,10 +9,10 @@ def case(input, eq=None, equal_after=True):
     tree = utils.deastify(LLLParser(input).parse_lll())
     string = LLLWriter().write_lll(tree)
     if eq is not None and eq != string:
-        raise Exception('Mismatch specified', string, eq)
+        print('BUG: Mismatch specified', string, eq)
     tree_after = utils.deastify((LLLParser(string).parse_lll()))[1]
     if tree != tree_after and equal_after:
-        raise Exception('mismatch before/after', tree, tree_after)
+        print('BUG mismatch before/after', tree, tree_after)
 
 #case('q(a b [a] 3 [ [b]] 432)')
 

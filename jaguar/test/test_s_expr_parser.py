@@ -21,9 +21,7 @@ def test_case(string, tree, o='(', c=')', white=[' ', '\t', '\n']):
     result =  map(utils.deastify, SExprParser(string).parse().args[1:])
     if result != tree:
         #raise Exception('Mismatch', "\ntree", tree, "\nstring", string, "\nresult", result)
-        print("string", string)
-        print("tree  ", tree)        
-        print("result", result)
+        print("BUG Mismatch", string, tree, result)
 
 
 def test_1(p=0.1, n=2, d=2):

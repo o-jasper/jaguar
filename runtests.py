@@ -30,7 +30,7 @@ def test_on_text(text):
     ast = parser.parse(text)
     print "AST:", ast
     print ""
-    ast2 = rewriter.compile_to_lll(ast)
+    ast2 = rewriter.rewrite_to_lll(ast)
     print "LLL:", ast2
     print ""
     bijection_test_LLLParser(ast2)

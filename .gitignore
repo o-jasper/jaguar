@@ -1,3 +1,4 @@
 jaguar/*.pyc
 visualize/*.pyc
 .result/
+jaguar/__pycache__/

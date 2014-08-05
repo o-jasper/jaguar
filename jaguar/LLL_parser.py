@@ -6,66 +6,45 @@ from utils import astnode, is_string, to_string
 def assert_len(ast, length, say="wrong_length, should be"):
     if len(ast) != length:
         raise Exception(say, length, len(ast), ast)
-        
 
-def lll_to_s_expr(ast):
-
-    if isinstance(ast, astnode):
-        ms = {'@':'mload', '@@':'sload'}  # These first
-        i, intermediate = 0, []
-        while i < len(ast):
-            el = ast[i]
-            if el in ms:
-                top = astnode([ms[el], None], *ast.metadata)
-                add = top
-                j = i
-                while ast[j] in ms:
-                    if j >= len(ast) - 1:  # Out of space.
-                        raise Incorrect('Accessing; @@ or @ may not be last element',
-                                        None, ast)
-                    if i != j:
-                        add = astnode([ms[ast[j]], add], *ast.metadata)
-                    j += 1
-                top.args[1] = ast[j]
-                intermediate.append(add)
-                i = j + 1
+# Returns what it got and what is left.
+def lll_to_s_expr(inp, metadata=None):
+    if isinstance(inp, list):
+        loads = {'@':'mload', '@@':'sload'}
+        if inp[0] in loads:
+            got, left = lll_to_s_expr(inp[1:], metadata)
+            return astnode([loads[inp[0]], got], *metadata), left
+        elif isinstance(inp[0], astnode) and inp[0].fun == 'aref':
+            got, left = lll_to_s_expr(inp[1:], metadata)
+            assert len(inp[0]) == 2
+            if inp[0][1].fun == 'aref':
+                mod_node = astnode(['top'] + inp[0][1].args[1:], *metadata)
+                index = lll_to_s_expr(mod_node, metadata)[1]
+                return astnode(['sstore', index, got], *metadata), left
             else:
-                intermediate.append(el)
-                i += 1
-        i, ret = 0, []
-        while i < len(intermediate):  # Then setting array stuff.
-            el = intermediate[i]
-            enter = el
-            if isinstance(el, astnode) and len(el.args)>0 and el[0] == 'aref':
-                if i >= len(intermediate) - 1:
-                    raise Incorrect('Setting; [[..]] [...] may not be last element',
-                                    el, None)
-                if len(el) != 2:
-                    raise Incorrect("Wrong number of arguments to aref ([])",
-                                    el, None)
-                if isinstance(el[1], astnode) and el[1][0] == 'aref':
-                    enter = ['sstore', el[1][1], intermediate[i+1]]
-                    enter = astnode(enter, *ast.metadata)
-                    enter.comments = el.comments + el[1].comments
-                else:                
-                    enter = ['mstore', el[1], intermediate[i + 1]]
-                    enter = astnode(enter, *ast.metadata)
-                    enter.comments = el.comments
-                i += 2
-            else:
-                i += 1
-
-            ret.append(lll_to_s_expr(enter))
-
-        assert '@' not in ret and '@@' not in ret
-        ret_node = astnode(ret, *ast.metadata)
-        ret_node.comments = ast.comments
-        return ret_node
-    elif is_string(ast):  # These should be taken out by now.
-        assert ast not in ['@', '@@']
-        return ast
+                mod_node = astnode(['top'] + inp[0].args[1:], *metadata)
+                index = lll_to_s_expr(mod_node, metadata)[1]
+                return astnode(['mstore', index, got], *metadata), left
+        else:
+            return inp[0], inp[1:]
+    elif isinstance(inp, astnode):
+        left = inp.args[1:]
+        out = [inp.fun]
+        while len(left) > 0:
+            got, left = lll_to_s_expr(left, metadata or inp.metadata)
+            out.append(got)
+        return astnode(out, *inp.metadata)
     else:
-        raise Exception('Dont expect type in AST:', type(ast), ast)
+        return inp
+
+
+def lll_split(string):
+    o = []
+    for el in string.split():
+        for sel in el.split(':'):
+            if sel != '':
+                o.append(sel)
+    return o
 
 
 class LLLParser(SExprParser):
@@ -90,8 +69,9 @@ class LLLParser(SExprParser):
 
     def handle(self, in_string ,b):
         ret = []
-        for string in in_string.split():
-            i = string.find('@')
+        for string in lll_split(in_string):
+            
+            i = string.find('@') # Separate @
             if i == -1:
                 ret.append(str(string))
             elif i != 0:
@@ -126,70 +106,82 @@ class LLLWriter:
         sc('sstore', sstore)
         sc('str',    '"')
         sc('seq',    '{')
+        sc('top',    True)
 
     # Handles lists, putting around spaces and whitespace betweem.
-    def write_lll_list_stream(self, stream, inlist, o='(', c=')'):
-        if type(inlist) is not list:
+    def write_lll_list_stream(self, stream, inlist, o='(', c=')', b=' ', n=0, t='  '):
+        if not isinstance(inlist, list):
             raise Exception('Not list: ', type(inlist), list)
         write_str(stream, o)
         if len(inlist) > 0:
-            self.write_lll_stream(stream, inlist[0])
+            self.write_lll_stream(stream, inlist[0], n)
             for el in inlist[1:]:
-                write_str(stream, ' ')
-                self.write_lll_stream(stream, el)
+                write_str(stream, b + t*n if b == '\n' else b)
+                self.write_lll_stream(stream, el, n)
+                        
         write_str(stream, c)
 
     # NOTE: a lot of cases, maybe something like
     # rewriter.simple_macro can do it better.
-    def write_lll_special_stream(self, stream, val, name, c):
-        if name in ['mload','sload']:
+    def write_lll_special_stream(self, stream, val, name, c, n):
+        if name == 'top':
+            for el in val.args[1:]:
+                self.write_lll_stream(stream, el, n)
+                write_str(stream, "\n")
+        elif name in ['mload','sload']:
             if len(val) != 2:
-                raise Exception("%s input wrong length" % name, val)
+                raise Exception(name, 'wrong number of args 2!=', len(val), val, val.line)
             if c in ['@','@@']:
                 write_str(stream, c)
-                return self.write_lll_stream(stream, val[1])
+                self.write_lll_stream(stream, val[1], n)
             elif c == 'var':  # (Note this is not LLL output)
                 if type(val[1]) is str:
                     write_str(stream, val[1])
                 else:
                     write_str(stream, '(mload ')
-                    self.write_lll_stream(val[1])
+                    self.write_lll_stream(stream, val[1], n)
                     write_str(stream, ')')
-                return
         elif name in ['mstore', 'sstore']:
-            assert len(val) == 3
+            if len(val) != 3:
+                raise Exception(name, 'wrong number of args 3!=', len(val), val, val.line)
             if c in ['[', '[[']:
                 write_str(stream, c)
-                self.write_lll_stream(stream, val[1])
+                self.write_lll_stream(stream, val[1], n)
                 write_str(stream, '] ' if c == '[' else ']] ')
-                return self.write_lll_stream(stream, val[2])
+                self.write_lll_stream(stream, val[2], n)
         elif name == 'seq':
             if c == '{':
-                return self.write_lll_list_stream(stream, val[1:], '{', '}')
+                self.write_lll_list_stream(stream, val.args[1:],
+                                           '{\n', '}\n', '\n', n + 1)
+        elif name in ['when', 'unless', 'if', 'for']:
+            self.write_lll_list_stream(stream, val.args, '(', ')', '\n', n + 1)
         elif name == 'str':
             assert len(val) == 2
             if c == '"':
-                return write_str(stream, '"' + val[1] + '"')
+                write_str(stream, '"' + val[1] + '"')
         else:
-            return self.write_lll_list_stream(stream,val, '(', ')')
-        raise Exception('Invalid config', c, val)
+#            return self.write_lll_list_stream(stream, val, '(', ')', ' ', n)
+            raise Exception('Invalid config', c, val)
 
     # Main 'portal' function.
-    def write_lll_stream(self, stream, ast):
-        if type(ast) is list:
-            if is_string(ast[0]):
-                name = ast[0].lower()
+    def write_lll_stream(self, stream, ast, n):
+        if is_string(ast):
+            write_str(stream, ast)
+        elif isinstance(ast, astnode):
+            if is_string(ast.fun):
+                name = ast.fun.lower()
                 if name in self.config:  # It is a special statement.
                     c = self.config[name]
                     if c != 'sexpr':  # (Unless config tells us to use s-expressions.)
-                        return self.write_lll_special_stream(stream, ast, name, c)
-            self.write_lll_list_stream(stream, ast, '(', ')')
+                        return self.write_lll_special_stream(stream, ast, name, c, n)
+
+            self.write_lll_list_stream(stream, ast.args, '(', ')', ' ', n)
         else:
-            write_str(stream, ast)
+            raise Exception('What is', ast, type(ast))
 
     def write_lll(self, tree):
         stream = io.StringIO()
-        self.write_lll_stream(stream, tree)
+        self.write_lll_stream(stream, tree, 0)
         stream.seek(0)  # Dont forget to read back!
         return stream.read()
 

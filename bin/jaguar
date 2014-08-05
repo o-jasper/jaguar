@@ -32,12 +32,20 @@ def tree_from(inp, fr):
 def easm_from(inp, fr):
     return compiler.compile_lll(rewriter.rewrite(tree_from(inp, fr)))
 
+# Order matters.
+tps = ['exp.lll', 'lll', 'se', 'easm', 'ebc']
+
+
 def figure_type_n_stream(override, maybefile, default_stream):
-    i = maybefile.rfind('.')
-    if i == -1:
-        return default_stream, False, (override or maybefile)
-    else:
-        return open(maybefile), True, (override or maybefile[i+1:])
+    for tp in tps:
+        if maybefile == tp:  # Not a file.
+            return default_stream, False, (override or tp)
+        elif len(maybefile) > len(tp) and maybefile[-len(tp)-1:] == '.' + tp:
+            return open(maybefile), True, (override or tp)
+    if not override:
+        print('Dont have a type?!')
+    return open(maybefile), True, override
+
 
 def main():
 
@@ -51,13 +59,13 @@ def main():
             outp.close()
 
     if to == 'lll':  # Produce LLL.
-        LLL_parser.LLLWriter().write_lll_stream(outp, rewriter.rewrite(tree_from(inp, fr)))
+        LLL_parser.LLLWriter().write_lll_stream(outp, tree_from(inp, fr), 0)
+    elif to == 'exp.lll': # Produce LLL after expansion.
+        expanded = rewriter.rewrite(tree_from(inp, fr))
+        LLL_parser.LLLWriter().write_lll_stream(outp, result, 0)
     elif to == 'se':  # Produce serpent code.
         # TODO will have to reconstruct from returning..
         write_serpent(tree_from(inp, fr), outp)
-    elif to == 'expand_lll':
-        tree = tree_from(inp, fr)
-        LLL_parser.LLLWriter().write_lll_stream(outp, rewriter.rewrite(tree))
     elif to == 'easm':  # Produce Ethereum assembly(just barely not bytecode)
         for el in easm_from(inp, fr):
             outp.write(utils.to_string(el) + ' ')

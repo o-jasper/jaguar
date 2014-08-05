@@ -46,7 +46,6 @@ class SExprParser:
     # Just do SExprParser().parse(), dont neccesarily need a variable.
     def __init__(self, stream, line_i = 0,
                  start_end = None, do_comments=True,
-                 white=[' ', '\t', '\n'],
                  earliest_macro={}, fil='',
                  handle = lambda a,b: str(a).split()):
         if isinstance(stream, (str, unicode)):

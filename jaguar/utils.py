@@ -14,7 +14,7 @@ class astnode():
 
     @property
     def fun(self):
-        return self.args[0]
+        return self.args[0] if len(self.args) > 0 else ''
 
     def __repr__(self):
         if len(self.args) == 0:

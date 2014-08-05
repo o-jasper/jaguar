@@ -6,15 +6,16 @@ from LLL_parser import LLLParser, LLLWriter
 import utils
 
 def case(input, eq=None, equal_after=True):
-    tree = utils.deastify(LLLParser(input).parse_lll())
+    tree = LLLParser(input).parse_lll()
+    print('t', tree)
     string = LLLWriter().write_lll(tree)
     if eq is not None and eq != string:
         print('BUG: Mismatch specified', string, eq)
-    tree_after = utils.deastify((LLLParser(string).parse_lll()))[1]
-    if tree != tree_after and equal_after:
+    tree_after = LLLParser(string).parse_lll()
+    if utils.deastify(tree) != utils.deastify(tree_after) and equal_after:
         print('BUG mismatch before/after', tree, tree_after)
 
-#case('q(a b [a] 3 [ [b]] 432)')
+case('q(a b [a] 3 [ [b]] 432)')
 
 case('a (thing) b')
 case('a "string" b')
@@ -27,6 +28,9 @@ case(""" {
   }""")
 
 # Not equal after because case get bludgeoned.
-case('(SEQ a b c)', '(top {a b c})', False)
+case('(SEQ a b c)', '{\na\n  b\n  c}\n\n', False)
+
+#case("""(when @@(caller) [[@@(caller)]] 0)""")
+case("[[@@ska]] skoe")
 
 print("RAN: " + str(os.path.basename(__file__)))

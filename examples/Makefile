@@ -48,6 +48,9 @@ allviz: sg cf
 %.lll.test: % jag
 	../bin/jaguar $< lll | ../remember_test.sh $@ ; touch $@
 
+%.exp.lll.test: % jag
+	../bin/jaguar $< exp.lll | ../remember_test.sh $@ ; touch $@
+
 ebc.test: Bank/Bank.lll.ebc.test Key_Value/kv.lll.ebc.test NameReg/NameReg.lll.ebc.test Splitter/Splitter.lll.ebc.test \
 	SubCurrency/SubCurrency.lll.ebc.test
 
@@ -56,5 +59,8 @@ easm.test: Bank/Bank.lll.easm.test Key_Value/kv.lll.easm.test NameReg/NameReg.ll
 
 lll.test: Bank/Bank.lll.lll.test Key_Value/kv.lll.lll.test NameReg/NameReg.lll.lll.test Splitter/Splitter.lll.lll.test \
 	SubCurrency/SubCurrency.lll.lll.test
+
+exp.lll.test: Bank/Bank.lll.exp.lll.test Key_Value/kv.lll.exp.lll.test NameReg/NameReg.lll.exp.lll.test Splitter/Splitter.lll.exp.lll.test \
+	SubCurrency/SubCurrency.lll.exp.lll.test
 
 alltest: ebc.test easm.test lll.test

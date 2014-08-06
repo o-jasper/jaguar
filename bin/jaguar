@@ -43,7 +43,7 @@ def figure_type_n_stream(override, maybefile, default_stream):
         elif len(maybefile) > len(tp) and maybefile[-len(tp)-1:] == '.' + tp:
             return open(maybefile), True, (override or tp)
     if not override:
-        print('Dont have a type?!')
+        print('Dont know what type to in/output.')
     return open(maybefile), True, override
 
 
@@ -62,7 +62,7 @@ def main():
         LLL_parser.LLLWriter().write_lll_stream(outp, tree_from(inp, fr), 0)
     elif to == 'exp.lll': # Produce LLL after expansion.
         expanded = rewriter.rewrite(tree_from(inp, fr))
-        LLL_parser.LLLWriter().write_lll_stream(outp, result, 0)
+        LLL_parser.LLLWriter().write_lll_stream(outp, expanded, 0)
     elif to == 'se':  # Produce serpent code.
         # TODO will have to reconstruct from returning..
         write_serpent(tree_from(inp, fr), outp)

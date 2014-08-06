@@ -17,7 +17,7 @@ def lll_to_s_expr(inp, metadata=None):
         elif isinstance(inp[0], astnode) and inp[0].fun == 'aref':
             got, left = lll_to_s_expr(inp[1:], metadata)
             assert len(inp[0]) == 2
-            if inp[0][1].fun == 'aref':
+            if isinstance(inp[0][1], astnode) and inp[0][1].fun == 'aref':
                 mod_node = astnode(['top'] + inp[0][1].args[1:], *metadata)
                 index = lll_to_s_expr(mod_node, metadata)[1]
                 return astnode(['sstore', index, got], *metadata), left
@@ -26,7 +26,7 @@ def lll_to_s_expr(inp, metadata=None):
                 index = lll_to_s_expr(mod_node, metadata)[1]
                 return astnode(['mstore', index, got], *metadata), left
         else:
-            return inp[0], inp[1:]
+            return lll_to_s_expr(inp[0], metadata), inp[1:]
     elif isinstance(inp, astnode):
         left = inp.args[1:]
         out = [inp.fun]

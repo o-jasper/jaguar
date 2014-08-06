@@ -214,7 +214,8 @@ constants = [
 
 
 def _getvar(ast):
-    if is_string(ast) and not ast[0] == '"' and not str_is_numeric(ast) and \
+    if is_string(ast) and not ast == '' \
+       and not ast[0] == '"' and not str_is_numeric(ast) and \
        ast not in map(lambda x: x[0], constants) and \
        ast[0] != '_':
         inner = '__' + ast
@@ -223,9 +224,12 @@ def _getvar(ast):
 
 def _setvar(ast):
     if isinstance(ast, astnode) and ast.fun == 'set':
-        prefix = '__' if ast[1][0] != '_' else ''
-        inner = prefix + ast[1]
-        return astnode(['MSTORE', inner, ast[2]], *ast.metadata)
+        prefix = '__' if ast[1].fun != '_' else ''
+        if len(ast) != 3:
+            raise Exception('Setting astnode wrong length (!=3);', ast, len(ast))
+        if is_string(ast[1]):
+            inner = prefix + ast[1]
+            return astnode(['MSTORE', inner, ast[2]], *ast.metadata)
 
 synonyms = [
     ['|', 'OR'],

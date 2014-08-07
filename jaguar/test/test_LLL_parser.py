@@ -15,7 +15,7 @@ def case(input, eq=None, equal_after=True):
     if utils.deastify(tree) != utils.deastify(tree_after) and equal_after:
         print('BUG: mismatch before/after', tree, tree_after)
 
-    found = in_there(tree_after, ['aref'], [''])
+    found = utils.in_there(tree_after, ['aref'], [''])
     if found:
         print('BUG: Something in there that shouldnt be;', found)
 

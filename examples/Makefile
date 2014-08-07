@@ -40,16 +40,16 @@ allviz: sg cf
 # Tests,
 
 %.lll.test: % jag
-	../bin/jaguar $< lll --check yes | ../remember_test.sh $@ ; touch $@
+	../bin/jaguar $< lll --test yes | ../remember_test.sh $@ ; touch $@
 
 %.exp.lll.test: % jag
-	../bin/jaguar $< exp.lll  --check yes | ../remember_test.sh $@ ; touch $@
+	../bin/jaguar $< exp.lll  --test yes | ../remember_test.sh $@ ; touch $@
 
 %.easm.test: % jag
-	../bin/jaguar $< easm --check yes | ../remember_test.sh $@ ; touch $@
+	../bin/jaguar $< easm --test yes | ../remember_test.sh $@ ; touch $@
 
 %.ebc.test: % jag
-	../bin/jaguar $< ebc --check yes | ../remember_test.sh $@ ; touch $@
+	../bin/jaguar $< ebc --test yes | ../remember_test.sh $@ ; touch $@
 
 lll.test:
 	ls */*.se */*.lll | sh alldo.sh make .lll.test

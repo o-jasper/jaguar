@@ -59,10 +59,13 @@ def test_on_file(file):
         if i >= len(t):
             break
 
+test_on_file('tests.txt')
+
+rewriter.base_dir = 'examples/Just_code/'
 # TODO point the commandline tool at it from the makefile instead.
-for f in ['tests.txt',
-          'examples/mul2.se', 'examples/namecoin.se',
-          # Currently dont work, latter is fixed by #33
-          'examples/returnten.se', 'examples/subcurrency.se'
+for f in ['examples/Just_code/mul2.se',
+          'examples/NameReg/namecoin.se',
+          'examples/Just_code/returnten.se',
+          'examples/SubCurrency/subcurrency.se'
           ]:
     test_on_file(f)

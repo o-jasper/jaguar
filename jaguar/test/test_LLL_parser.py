@@ -5,17 +5,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from LLL_parser import LLLParser, LLLWriter
 import utils
 
-def in_there(ast, funs, vars):
-    if isinstance(ast, utils.astnode):
-        if ast.fun in funs:
-            return ast.fun
-        for el in ast.args[1:]:
-            got = in_there(el, funs,vars)
-            if got:
-                return got, ast
-    else:
-        return ast if (ast in vars) else None
-
 def case(input, eq=None, equal_after=True):
     tree = LLLParser(input).parse_lll()
     print('t', tree)
@@ -26,7 +15,7 @@ def case(input, eq=None, equal_after=True):
     if utils.deastify(tree) != utils.deastify(tree_after) and equal_after:
         print('BUG: mismatch before/after', tree, tree_after)
 
-    found = in_there(tree_after, ['aref'], [])
+    found = in_there(tree_after, ['aref'], [''])
     if found:
         print('BUG: Something in there that shouldnt be;', found)
 

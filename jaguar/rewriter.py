@@ -130,6 +130,9 @@ simple_macros = [
         ['<=', '$x', '$y'],
         ['NOT', ['GT', '$x', '$y']]
     ],
+    [   ['!=', '$x', '$y'],
+        ['NOT', ['=', '$x', '$y']]
+    ],
     [
         ['create', '$endowment', '$code'],
         ['seq',

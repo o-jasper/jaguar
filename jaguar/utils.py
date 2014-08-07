@@ -103,3 +103,15 @@ def numberize(b):
         return fromhex(b[2:])
     else:
         return int(b)
+
+# For testing.
+def in_there(ast, funs, vars):
+    if isinstance(ast, astnode):
+        if ast.fun in funs:
+            return ast.fun
+        for el in ast.args[1:]:
+            got = in_there(el, funs,vars)
+            if got:
+                return got, ast
+    else:
+        return ast if (ast in vars) else None

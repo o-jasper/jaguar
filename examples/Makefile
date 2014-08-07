@@ -39,28 +39,28 @@ allviz: sg cf
 
 # Tests,
 
-%.ebc.test: % jag
-	../bin/jaguar $< ebc | ../remember_test.sh $@ ; touch $@
-
-%.easm.test: % jag
-	../bin/jaguar $< easm | ../remember_test.sh $@ ; touch $@
-
 %.lll.test: % jag
-	../bin/jaguar $< lll | ../remember_test.sh $@ ; touch $@
+	../bin/jaguar $< lll --check yes | ../remember_test.sh $@ ; touch $@
 
 %.exp.lll.test: % jag
-	../bin/jaguar $< exp.lll | ../remember_test.sh $@ ; touch $@
+	../bin/jaguar $< exp.lll  --check yes | ../remember_test.sh $@ ; touch $@
 
-ebc.test: Bank/Bank.lll.ebc.test Key_Value/kv.lll.ebc.test NameReg/NameReg.lll.ebc.test Splitter/Splitter.lll.ebc.test \
-	SubCurrency/SubCurrency.lll.ebc.test
+%.easm.test: % jag
+	../bin/jaguar $< easm --check yes | ../remember_test.sh $@ ; touch $@
 
-easm.test: Bank/Bank.lll.easm.test Key_Value/kv.lll.easm.test NameReg/NameReg.lll.easm.test Splitter/Splitter.lll.easm.test \
-	SubCurrency/SubCurrency.lll.easm.test
+%.ebc.test: % jag
+	../bin/jaguar $< ebc --check yes | ../remember_test.sh $@ ; touch $@
 
-lll.test: Bank/Bank.lll.lll.test Key_Value/kv.lll.lll.test NameReg/NameReg.lll.lll.test Splitter/Splitter.lll.lll.test \
-	SubCurrency/SubCurrency.lll.lll.test
+lll.test:
+	ls */*.se */*.lll | sh alldo.sh make .lll.test
 
-exp.lll.test: Bank/Bank.lll.exp.lll.test Key_Value/kv.lll.exp.lll.test NameReg/NameReg.lll.exp.lll.test Splitter/Splitter.lll.exp.lll.test \
-	SubCurrency/SubCurrency.lll.exp.lll.test
+exp.lll.test:  #.se ones dont succeed yet.
+	ls */*.lll | sh alldo.sh make .exp.lll.test
+
+easm.test:
+	ls */*.lll | sh alldo.sh make .easm.test
+
+ebc.test:
+	ls */*.lll | sh alldo.sh make .ebc.test
 
 alltest: ebc.test easm.test lll.test

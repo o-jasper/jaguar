@@ -11,7 +11,7 @@
 RESULT=/tmp/runtest.$(date +%s)$RANDOM
 cat > $RESULT
 
-grep BUG $RESULT  # Print all bugs in theere.
+grep BUG $RESULT  # Print all bugs in there.
 
 mkdir -p .result/$1/last/
 

@@ -14,16 +14,30 @@ def get_args():
     parser.add_argument('--in_type', default=None,
                         help='Overrides input type.')
     parser.add_argument('--out_type', default=None,
-                        help='Overrides input type.')    
+                        help='Overrides input type.')
+
+    parser.add_argument('--check', default='false',
+                        help='Does some checks at the end, Basically only for detecting bugs.')
     return parser.parse_args()
 
 args = get_args()
+check = (args.check in ['yes', 'true'])
 
-def tree_from(inp, fr):
+def tree_from(inp, fr):  # Note: just produces the ast tree, doesnt expand any.
     if fr == 'lll':
-        return LLL_parser.LLLParser(inp, do_comments=False).parse_lll().args[1]
+        result = LLL_parser.LLLParser(inp, do_comments=False).parse_lll().args[1]
+        if check:
+            got = utils.in_there(result, ['aref'], [''])
+            if got:
+                print('BUG: something in there that shouldnt be;', got)
+        return result
     elif fr == 'se':
-        got = rewriter.rewrite(parser.parse('\n'.join(inp.readlines())))
+        result = parser.parse('\n'.join(inp.readlines()))
+        if check:
+            got = utils.in_there(result, [], [None, ''])
+            if got:
+                print('BUG: something in there that shouldnt be;', got)
+        return result
     else:
         print('From %s to tree not implemented', fr)
         return None

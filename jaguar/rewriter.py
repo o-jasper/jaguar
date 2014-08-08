@@ -1,14 +1,26 @@
 from parser import parse
 from utils import astnode, astify, is_string, str_is_numeric, numberize
 
-# All AST rewrite rules go here
-#
-# Format specification (yo dawg, I herd you like DSLs so I made a DSL
-# to help you write a compiler for your DSL into your other DSL so you
-# can debug your code while you debug your code...)
-#
-# Use <xxx> to indicate parts of the code that can pattern-match anything
-# Use '@xxx' to generate variables on the fly
+# Placeholders for type calculation.
+def calc_type(x):
+    return x
+
+def type_of(x):
+    return 'slot'
+
+def size_of(x):
+    return {'slot':32}[x]
+
+# Use $xxx to indicate parts of the code that can pattern-match anything.
+# Use '@xxx' to generate variables on the fly.
+
+# Note:
+#  * mload, sload, sstore, mstore refer to memory operations.
+#  * mget, sget, sset and mset refer to those memory operations,
+#    but with index finding inbetween.
+# Tuples for knowing locations of variables and their types.
+
+# TODO looks ugly, just read it in.
 
 preparing_simple_macros = [
     [
@@ -58,11 +70,12 @@ simple_macros = [
         ['access', 'contract.storage', '$ind'],
         ['SLOAD', '$ind']
     ],
-    [
+    [ # Types?!
         ['access', '$var', '$ind'],
         ['MLOAD', ['ADD', '$var', ['MUL', '32', '$ind']]]
     ],
-    [
+    [ # TODO/note: maybe this should storah be relegated to sstore, as you're
+      # doing it manually.
         ['set', ['access', 'contract.storage', '$ind'], '$val'],
         ['SSTORE', '$ind', '$val']
     ],
@@ -70,21 +83,22 @@ simple_macros = [
         ['set', ['access', '$var', '$ind'], '$val'],
         ['arrset', '$var', '$ind', '$val']
     ],
-    [
+    [ # Types?!
         ['arrset', '$var', '$ind', '$val'],
         ['MSTORE', ['ADD', '$var', ['MUL', '32', '$ind']], '$val']
     ],
-    [
+    [ # * 
         ['getch', '$var', '$ind'],
         ['MOD', ['MLOAD', ['ADD', '$var', '$ind']], '256']
     ],
-    [
+    [ # *
         ['setch', '$var', '$ind', '$val'],
         ['MSTORE8', ['ADD', '$var', '$ind'], '$val']
     ],
     [
         ['send', '$to', '$value'],
-        ['CALL', ['SUB', ['GAS'], '25'], '$to', '$value', '0', '0', '0', '0']
+        ['CALL', ['SUB', ['GAS'], 'gascosts.send_ether'],
+                 '$to', '$value', '0', '0', '0', '0']
     ],
     [
         ['send', '$gas', '$to', '$value'],
@@ -143,7 +157,7 @@ simple_macros = [
         ['seq',
             ['MSTORE', '@1', '$dataval'],
             ['CALL', '$gas', '$to', '$val', '@1', '32', '@2', '32'],
-            ['MLOAD', '@2']]
+            ['mget', '@2']]
     ],
     [
         ['call', '$f', '$dataval'],
@@ -154,25 +168,25 @@ simple_macros = [
         ['seq',
             ['CALL', '$gas', '$to', '$val', '$inp',
                 ['MUL', '32', '$inpsz'], '@1', '32'],
-            ['MLOAD', '@1']]
+            ['mget', '@1']]
     ],
     [
         ['call', '$f', '$inp', '$inpsz'],
         ['seq',
-            ['set', '@1', '$inpsz'],
+            ['mset', '@1', '$inpsz'],
             ['msg',
-                ['SUB', ['GAS'], ['ADD', '25', ['MLOAD', '@1']]],
-                '$f', '0', '$inp', ['MLOAD', '@1']]]
+                ['SUB', ['GAS'], ['ADD', '25', ['mget', '@1']]],
+                '$f', '0', '$inp', ['mget', '@1']]]
     ],
     [
         ['msg', '$gas', '$to', '$val', '$inp', '$inpsz', '$outsz'],
         ['seq',
-            ['MSTORE', '@1', ['MUL', '32', '$outsz']],
-            ['MSTORE', '@2', ['alloc', ['MLOAD', '@1']]],
+            ['mset', '@1', ['MUL', '32', '$outsz']],
+            ['mset', '@2', ['alloc', ['mget', '@1']]],
             ['POP',
                 ['CALL', '$gas', '$to', '$val',
-                 '$inp', ['MUL', '32', '$inpsz'], '@2', ['MLOAD', '@1']]],
-            ['MLOAD', '@2']]
+                 '$inp', ['MUL', '32', '$inpsz'], '@2', ['mget', '@1']]],
+            ['mget', '@2']]
     ],
     [
         ['outer', ['init', '$init', '$code']],
@@ -194,7 +208,11 @@ simple_macros = [
     [
         ['seq', ['seq'], '$x'],
         '$x'
-    ]
+    ],
+
+    # Setting variables.
+    [['set', '$var', '$to'], ['mset', '$var', '$to']]
+    
 ]
 
 constants = [
@@ -212,27 +230,8 @@ constants = [
     ['block.number',     ['NUMBER']],
     ['block.difficulty', ['DIFFICULTY']],
     ['block.gaslimit',   ['GASLIMIT']],
-    ['stop',             ['STOP']],
+    ['stop',             ['STOP']]
 ]
-
-
-def _getvar(ast):
-    if is_string(ast) and not ast == '' \
-       and not ast[0] == '"' and not str_is_numeric(ast) and \
-       ast not in map(lambda x: x[0], constants) and \
-       ast[0] != '_':
-        inner = '__' + ast
-        return astnode(['MLOAD', inner])
-
-
-def _setvar(ast):
-    if isinstance(ast, astnode) and ast.fun == 'set':
-        prefix = '__' if ast[1].fun != '_' else ''
-        if len(ast) != 3:
-            raise Exception('Setting astnode wrong length (!=3);', ast, len(ast))
-        if is_string(ast[1]):
-            inner = prefix + ast[1]
-            return astnode(['MSTORE', inner, ast[2]], *ast.metadata)
 
 synonyms = [
     ['|', 'OR'],
@@ -260,6 +259,8 @@ synonyms = [
     ['#>', 'GT'],
     ['=', 'set'],
     ['==', 'EQ'],
+
+    ['gascosts.send_ether', '25']
 ]
 
 mathfuncs = [
@@ -274,31 +275,8 @@ mathfuncs = [
     ['XOR', lambda x, y: x ^ y]
 ]
 
-
-def _import(ast):
-    if isinstance(ast, astnode) and ast.fun == 'import':
-        filename = ast[1]
-        if filename[0] == '"':
-            filename = filename[1:-1]
-        x = preprocess(parse(open(filename).read(), ast[1]))
-        return astnode(['code', x], *ast.metadata)
-
-def _str(ast):
-    if isinstance(ast, astnode) and ast.fun == 'str':
-        assert len(ast) == 2
-        return '"' + ast[1] + '"'
-
-
-def _inset(ast):
-    if isinstance(ast, astnode) and ast.fun == 'inset':
-        filename = ast[1]
-        if filename[0] == '"':
-            filename = filename[1:-1]
-        return parse(open(filename).read(), ast[1])
-
-
-label_counter = [0]
-
+# Probably: the macro decides to take over how the internals are rewritten.
+macroexpand_stopper = []
 
 # Apply all rewrite rules
 def rewrite(ast):
@@ -309,9 +287,9 @@ def rewrite(ast):
         if not ast2:  # None of them changed anything.
             break
         ast = ast2
-    if is_string(ast):
+    if is_string(ast) or ast.fun in macroexpand_stopper:
         return ast
-    else:
+    else:  # Macroexpand all the arguments. #(TODO except something?)
         return astnode([ast.fun] + map(rewrite, ast.args[1:]), *ast.metadata)
 
 
@@ -373,15 +351,10 @@ def analyze(ast):
     return data
 
 
-# macro, ast -> dict
+# Figures out if a ast matches a pattern, and what the parameters are, if so.
 def get_macro_vars(pattern, ast):
     d = {}
-    if not isinstance(pattern, list):
-        if pattern[0] == '$':
-            d[pattern[1:]] = ast
-        elif isinstance(ast, astnode) or pattern != ast:
-            return None
-    else:
+    if isinstance(pattern, list):
         if not isinstance(ast, astnode) or len(ast) != len(pattern):
             return None
         for mitem, astitem in zip(pattern, ast.args):
@@ -390,20 +363,33 @@ def get_macro_vars(pattern, ast):
                 return None
             for k in subdict:
                 d[k] = subdict[k]
+    else:  
+        if pattern[0] == '$':  # TODO handle $var... (need to have ast at list level)
+            d[pattern[1:]] = ast
+        elif isinstance(ast, astnode) or pattern != ast:
+            return None
     return d
 
+# Symbol generator for temporary variables. (otherwise you get abstraction leaks.)
+gensym_counter = 0
 
-# dict, ast -> ast
-def set_macro_vars(subst, pattern, anchor, lc):
+def gensym(name='_gen_', post=''):
+    global gensym_counter
+    gensym_counter += 1
+    return name + str(gensym_counter) + ('' if (post == '') else '_' + post)
+
+
+# Sets the parameters in a pattern.
+def set_macro_vars(subst, pattern, anchor):
     if isinstance(pattern, (str, unicode)):
         if pattern[0] == '$':
             return subst[pattern[1:]]
-        elif pattern[0] == '@':
-            return '_temp_'+str(lc)+'_'+pattern[1:]
+        elif pattern[0] == '@':  # Basically `gensym(..)` without counting.
+            return '_smv_' + str(gensym_counter) + pattern[1:]
         else:
             return pattern
     else:
-        f = lambda ast: set_macro_vars(subst, ast, anchor, lc)
+        f = lambda ast: set_macro_vars(subst, ast, anchor)
         args = [pattern[0]] + map(f, pattern[1:])
         if isinstance(pattern, list):
             if is_string(anchor):
@@ -413,18 +399,39 @@ def set_macro_vars(subst, pattern, anchor, lc):
         else:
             return pattern
 
-
+# If pattern, set by second pattern.
 def simple_macro(args):
     pattern, subst = args
 
     def app(ast):
         dic = get_macro_vars(pattern, ast)
         if dic is not None:
-            label_counter[0] += 1
-            return set_macro_vars(dic, subst, ast, label_counter[0])
+            global gensym_counter
+            gensym_counter += 1  # Counts instead of the function itself continuously.
+            return set_macro_vars(dic, subst, ast)
     return app
 
+# If  pattern, call function.
+def on_pattern_macro(args):
+    pattern, fun = args
 
+    def app(ast):
+        dic = get_macro_vars(pattern, ast)
+        if dic is not None:
+            return fun(ast, *dic)
+    return app
+
+# Assert a pattern shouldnt be in there, returning a message.
+def assert_nonexistance(args):
+    pattern, msg = args
+    
+    def app(ast):
+        dic = get_macro_vars(pattern, ast)
+        if dic is not None:  # TODO better message.
+            raise Exception('may not exist:', ast, msg)
+    return app
+
+# Straight out replacement doing nothing.
 def synonym_macro(args):
     old, new = args
 
@@ -433,7 +440,7 @@ def synonym_macro(args):
             return astnode([new] + ast.args[1:], *ast.metadata)
     return app
 
-
+# Simplification with plain numbers.
 def math_macro(args):
     head, transform = args
 
@@ -448,21 +455,161 @@ def math_macro(args):
             return str(transform(*funargs))
     return app
 
+base_dir = ''  # Directory to import from.
 
-global gen_i
-gen_i = 0
+def file_ast(filename):
+    global base_dir
+    return parse(open(base_dir + filename).read(), filename)
 
-def gensym(name='#gen'):
-    global gen_i
-    gen_i += 1
-    return name + str(gen_i)
+
+# If it is a plain string, not a constant, and it is from serpent, it is an mload.
+def _se_getvar(ast):
+    assert ast != ''
+    if is_string(ast) and not ast[0] in ['\'', '"'] and not str_is_numeric(ast) and \
+       ast not in map(lambda x: x[0], constants):
+        return astnode(['mget', ast])
+
+#def _se_setvar(ast, var, to):
+#    if is_string(ast[1]):  # Otherwise it could be other things like contract.storage[11]
+#        return astnode(['mset', ast[1], ast[2]], *ast.metadata)
+
+
+class VarInfo:
+    def __init__(self, index, tp, *metadata):
+        self.index, self.tp = index, tp
+        self.metadata = metadata
+
+    @property
+    def info(self):
+
+class MemTracker:
+    """Tracks where to put variables in memory"""
+    def __init__(self, getword, setword):
+        self.getword = getword
+        self.setword = setword
+        self.vdict = {}
+
+        self.top_i = 0
+        self.free = []
+
+    def mget(self, ast, var):
+        if isinstance(var, astnode):
+            raise Exception('Cannot set a variable that is not a symbol.', var)
+        if var not in self.vdict:
+            raise Exception('Variable not declared before use:', var)
+        index, tp, sz = self.vdict[var].info
+        i, j = index%256, index%256 + sz        
+        result = [self.getword, index/8]  # Best case is entire slot.
+        if j > 256:
+            raise Exception('BUG: larger than slot!', info, ast)
+
+        if i != 0:
+            result = ['DIV', result, 2**i]  # Shift out beginning.
+        if index + sz != 256:
+            result = ['MOD', result, 2**sz]  # Mask to select what we want.
+        return result
+
+    # Create an expression to set something.
+    def set_expression(self, index, sz, to):
+        i = index % 256
+        j = i + sz
+        if j > 256:
+            raise Exception('BUG: larger than slot!', info, ast)
+        # Modify `to` to a statement that mashes to correct type.
+        # Can fail if types dont fit.
+        to = mash_type(tp, to)
+        if size_of(tp) == 256:  # Its the whole thing.(cheapest, hence preferable for mem)
+            return [self.setword, index/8, to]
+
+        get = [self.getword, index/8]  # Overhead is one getting, AND and OR.(bitwise)
+        return [self.setword, index/8, ['OR', ['AND', 2**j - 1 - 2**i - 1, get], to]]
+    
+        # Alternatives: (neither seems faster, second maybe equal gas)
+        #if i == 0:  # Starts at beginning. (sz == j) Strip by deleting and adding again.
+        #    return [self.setword, index/256, ['ADD', ['MUL', ['DIV', get, 2**j], 2**j], to]]
+        #
+        #if j == 256:  # Ends at end
+        #    return [self.setword, index/256, ['OR', ['MOD', get, 2**i], to]
+
+    def next_top_i(self):
+        return self.top_i - self.top_i % 256 + 256
+    
+    def finish_slot(self, reserve):
+        self.open_spots.append([self.top_i, self.next_top_i() - self.top_i])
+        reserve_i = self.next_top_i()
+        self.top_i = reserve_i + reserve
+        return reserve_i
+    
+    def mset(self, ast, var, to, vdict=memory_vars, prefer_whole=True)
+        if var in vdict:  # Already exists.(ignores preference)
+            index, tp, sz = self.vdict[var].info
+            return self.set_expression(index, sz, to)
+        else: # Have to create it.
+            to = type_calc(to)
+            take_sz = (256 if prefer_whole else size_of(type_of(to)))
+                for i in range(len(self.open_spots)):
+                    el = self.open_spots[i]
+                    assert (el[0] + el[1])%256 == 0
+                    if el[1] == 256:  # Is size of slot.
+                        self.vdict[var] = VarInfo(el[0], ['whole_slot', type_of(to)], *ast.metadata)
+                        self.open_spots = self.open_spots[:i-1] + self.open_spots[i:]
+                        #(not expression because whole thing)
+                        return [self.setword, el[0]/8, to]
+                reserve_i = self.top_i
+                if self.top_i % 256 != 0:  # Make chunk and keep reserve of 256 bits there.
+                    reserve_i = self.finish_slot(256)
+                return [self.setword, reserve_i/8, to]
+            else:
+                for i in range(len(self.open_spots)):
+                    el = self.open_spots[i]
+                    assert (el[0] + el[1])%256 == 0
+                    if sz < el[1]:  # If fits.
+                        ret = self.set_expression(el[0], sz, to)
+                        self.vdict[var] = VarInfo(el[0], type_of(to), *ast.metadata)
+                        if sz == el[1]:
+                            self.open_spots = self.open_spots[:i-1] + self.open_spots[i:]
+                        else:
+                            el[0] += sz
+                            el[1] -= sz
+                        return ret
+                reserve_i = self.top_i
+                if self.top_i + sz > self.next_top_i():
+                    reserve_i = self.finish_slot(sz)
+                return self.set_expression(self.top_i, sz, to)
+
+def _mem_reserve(ast, n):
+    global memory_i
+    memory_i += n
+    return None
+def _mem_reserve(ast, n):
+    global memory_i
+    memory_i += n
+    return None
+
+pattern_macros = [
+    [['import', '$what'],     lambda ast, what: astnode(['code', preprocess(file_ast(what))],
+                                                       *ast.metadata)],
+    [['inset', '$what'],      lambda ast, what: file_ast(what)],
+    [['str', '$string'],      lambda ast, what: '"' + what + '"'],
+
+    [['mget', '$var'],        _mget],
+    [['mset', '$var', '$to'], _mset],
+#    ['mem_i',                    lambda ast: memory_i],
+#    [['mem_reserve', '$amount'], _mem_reserve],
+
+    [['sget', '$var'],        lambda ast, var: _mget(ast, var, storage_vars, 'sload')],
+#    [['sset', '$var', '$to'], _sset],
+#    ['storage_i',                     lambda ast: storage_i],
+#    [['storage_reserve', '$amount'],  _storage_reserve]
+    ]
+
+disallowed_pattern = []  # TODO
 
 def _case(ast):
-
     if isinstance(ast, astnode) and ast.fun == 'case':
         assert len(ast.args) == 4  # No cases, or plain wrong.
         assert ast[2].fun == 'seq' and len(ast[2]) == 1
-        var, val = gensym('#casevar'), ast[1]
+        var, val = gensym('_case_'), ast[1]
 
         def c(a):
             assert isinstance(a, astnode)
@@ -480,6 +627,8 @@ def _case(ast):
 macros = \
     map(simple_macro, preparing_simple_macros) + \
     map(simple_macro, simple_macros + constants) + \
-    [_getvar, _setvar, _case, _import, _inset, _str] + \
+    [_getvar, _se_getvar, _case] + \
+    map(on_pattern_macro, pattern_macros) + \
     map(synonym_macro, synonyms) + \
-    map(math_macro, mathfuncs)
+    map(math_macro, mathfuncs) + \
+    map(assert_nonexistance, disallowed_pattern)

@@ -1,5 +1,7 @@
 #!/usr/bin/python2
 
+# TODO add argument for setting the base directory?
+
 import sys, io
 
 import argparse
@@ -16,27 +18,27 @@ def get_args():
     parser.add_argument('--out_type', default=None,
                         help='Overrides input type.')
 
-    parser.add_argument('--check', default='false',
-                        help='Does some checks at the end, Basically only for detecting bugs.')
+    parser.add_argument('--test', default='false',
+                        help='Does some tests at the end, Basically only for detecting bugs.')
     return parser.parse_args()
 
 args = get_args()
-check = (args.check in ['yes', 'true'])
+test = (args.test in ['yes', 'true'])
 
 def tree_from(inp, fr):  # Note: just produces the ast tree, doesnt expand any.
     if fr == 'lll':
         result = LLL_parser.LLLParser(inp, do_comments=False).parse_lll().args[1]
-        if check:
+        if test:
             got = utils.in_there(result, ['aref'], [''])
             if got:
-                print('BUG: something in there that shouldnt be;', got)
+                print('BUG: something in output that shouldnt be;', got)
         return result
     elif fr == 'se':
         result = parser.parse('\n'.join(inp.readlines()))
-        if check:
+        if test:
             got = utils.in_there(result, [], [None, ''])
             if got:
-                print('BUG: something in there that shouldnt be;', got)
+                print('BUG: something in output that shouldnt be;', got)
         return result
     else:
         print('From %s to tree not implemented', fr)
@@ -44,7 +46,7 @@ def tree_from(inp, fr):  # Note: just produces the ast tree, doesnt expand any.
 
 
 def easm_from(inp, fr):
-    return compiler.compile_lll(rewriter.rewrite(tree_from(inp, fr)))
+    return compiler.compile_lll(rewriter.rewrite_to_lll(tree_from(inp, fr)))
 
 # Order matters.
 tps = ['exp.lll', 'lll', 'se', 'easm', 'ebc']

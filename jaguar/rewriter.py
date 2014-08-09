@@ -484,13 +484,14 @@ class VarInfo:
 
 class MemTracker:
     """Tracks where to put variables in memory"""
-    def __init__(self, getword, setword):
+    def __init__(self, getword, setword, prefer_whole):
         self.getword = getword
         self.setword = setword
         self.vdict = {}
 
         self.top_i = 0
         self.free = []
+        self.prefer_whole = prefer_whole
 
     def mget(self, ast, var):
         if isinstance(var, astnode):
@@ -521,70 +522,55 @@ class MemTracker:
         if size_of(tp) == 256:  # Its the whole thing.(cheapest, hence preferable for mem)
             return [self.setword, index/8, to]
 
-        get = [self.getword, index/8]  # Overhead is one getting, AND and OR.(bitwise)
-        return [self.setword, index/8, ['OR', ['AND', 2**j - 1 - 2**i - 1, get], to]]
-    
-        # Alternatives: (neither seems faster, second maybe equal gas)
-        #if i == 0:  # Starts at beginning. (sz == j) Strip by deleting and adding again.
-        #    return [self.setword, index/256, ['ADD', ['MUL', ['DIV', get, 2**j], 2**j], to]]
-        #
-        #if j == 256:  # Ends at end
-        #    return [self.setword, index/256, ['OR', ['MOD', get, 2**i], to]
+        get = [self.getword, index/8]  # (note that is 2**j - 1 - (2**i - 1) in there)
+        return [self.setword, index/8, ['OR', ['AND', 2**j - 2**i, get],
+                                              to if (i==0) else ['MUL', to, 2**i]]]
 
     def next_top_i(self):
         return self.top_i - self.top_i % 256 + 256
     
     def finish_slot(self, reserve):
+        # Record the hole.
         self.open_spots.append([self.top_i, self.next_top_i() - self.top_i])
-        reserve_i = self.next_top_i()
+        reserve_i = self.next_top_i() # Show where reserve slot starts.
         self.top_i = reserve_i + reserve
         return reserve_i
-    
-    def mset(self, ast, var, to, vdict=memory_vars, prefer_whole=True)
+
+    def mset(self, ast, var, to, prefer_whole=None)
         if var in vdict:  # Already exists.(ignores preference)
             index, tp, sz = self.vdict[var].info
             return self.set_expression(index, sz, to)
         else: # Have to create it.
             to = type_calc(to)
-            take_sz = (256 if prefer_whole else size_of(type_of(to)))
-                for i in range(len(self.open_spots)):
-                    el = self.open_spots[i]
-                    assert (el[0] + el[1])%256 == 0
-                    if el[1] == 256:  # Is size of slot.
-                        self.vdict[var] = VarInfo(el[0], ['whole_slot', type_of(to)], *ast.metadata)
-                        self.open_spots = self.open_spots[:i-1] + self.open_spots[i:]
-                        #(not expression because whole thing)
-                        return [self.setword, el[0]/8, to]
-                reserve_i = self.top_i
-                if self.top_i % 256 != 0:  # Make chunk and keep reserve of 256 bits there.
-                    reserve_i = self.finish_slot(256)
-                return [self.setword, reserve_i/8, to]
-            else:
-                for i in range(len(self.open_spots)):
-                    el = self.open_spots[i]
-                    assert (el[0] + el[1])%256 == 0
-                    if sz < el[1]:  # If fits.
-                        ret = self.set_expression(el[0], sz, to)
-                        self.vdict[var] = VarInfo(el[0], type_of(to), *ast.metadata)
-                        if sz == el[1]:
-                            self.open_spots = self.open_spots[:i-1] + self.open_spots[i:]
-                        else:
-                            el[0] += sz
-                            el[1] -= sz
-                        return ret
-                reserve_i = self.top_i
-                if self.top_i + sz > self.next_top_i():
-                    reserve_i = self.finish_slot(sz)
-                return self.set_expression(self.top_i, sz, to)
+            sz = (256 if prefer_whole else size_of(type_of(to)))  # Just the size it assumes.
+            ret = None
+            for i in range(len(self.open_spots)):
+                el = self.open_spots[i]
+                assert (el[0] + el[1])%256 == 0
+                if sz < el[1]:  # If fits.
+                    ret = self.set_expression(el[0], sz, to)
 
-def _mem_reserve(ast, n):
-    global memory_i
-    memory_i += n
-    return None
-def _mem_reserve(ast, n):
-    global memory_i
-    memory_i += n
-    return None
+                    self.vdict[var] = VarInfo(el[0], type_of(to), *ast.metadata)
+                    if sz == el[1]:  # Entire hole is gone.
+                        self.open_spots = self.open_spots[:i-1] + self.open_spots[i:]
+                    else:  #Just a bit gone.
+                        el[0] += sz
+                        el[1] -= sz
+                    break
+            if ret is not None:
+                reserve_i = self.top_i
+                if self.top_i + sz > self.next_top_i():  # It got on boundary of slot.
+                    reserve_i = self.finish_slot(sz)
+                ret = self.set_expression(self.top_i, sz, to)
+
+            assert not prefer_whole or ret[2] == to  # Just check some stuff.
+            assert ret[0] == setword and len(ret) == 3
+            return ret
+
+# True cuz memory is cheap(ish)
+memory  = MemTracker('mload', 'mstore', True)
+# True cuz lookup is expensive(and storage expensive) (interlink with memory?)
+storage = MemTracker('mload', 'sstore', True)
 
 pattern_macros = [
     [['import', '$what'],     lambda ast, what: astnode(['code', preprocess(file_ast(what))],
@@ -592,13 +578,13 @@ pattern_macros = [
     [['inset', '$what'],      lambda ast, what: file_ast(what)],
     [['str', '$string'],      lambda ast, what: '"' + what + '"'],
 
-    [['mget', '$var'],        _mget],
-    [['mset', '$var', '$to'], _mset],
+    [['mget', '$var'],        memory.mget],
+    [['mset', '$var', '$to'], memory.mset],
 #    ['mem_i',                    lambda ast: memory_i],
 #    [['mem_reserve', '$amount'], _mem_reserve],
 
-    [['sget', '$var'],        lambda ast, var: _mget(ast, var, storage_vars, 'sload')],
-#    [['sset', '$var', '$to'], _sset],
+    [['sget', '$var'],        storage.mget],
+    [['sset', '$var', '$to'], storage.mset]
 #    ['storage_i',                     lambda ast: storage_i],
 #    [['storage_reserve', '$amount'],  _storage_reserve]
     ]
